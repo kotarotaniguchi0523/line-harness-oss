@@ -1,0 +1,72 @@
+name: Publish to npm (Trusted Publishing)
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  id-token: write  # npm provenance + Takumi Guard OIDC
+
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish with Provenance
+    runs-on: ubuntu-latest
+    environment: npm-publish
+    steps:
+      - uses: actions/checkout@v4
+
+      # Takumi Guard — install 時のサプライチェーン保護
+      - uses: flatt-security/setup-takumi-guard-npm@v1
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      # registry-url を指定しない (.npmrc は Takumi Guard が設定済み)
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      # Install は Takumi Guard 経由
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm build
+
+      - name: Pre-publish Test
+        run: |
+          pnpm --filter domain exec vitest run
+          pnpm --filter contracts exec vitest run
+          pnpm --filter line-api exec vitest run
+          pnpm --filter worker exec vitest run
+
+      # Publish は npm 公式に直接送信
+      # Takumi Guard は読み取り専用プロキシなので --registry で npm を直指定
+      - name: Publish @line-crm/sdk
+        run: pnpm --filter sdk publish --provenance --access public --no-git-checks --registry https://registry.npmjs.org
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: true
+
+      - name: Publish @line-crm/contracts
+        run: pnpm --filter contracts publish --provenance --access public --no-git-checks --registry https://registry.npmjs.org
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: true
+
+      - name: Publish @line-crm/domain
+        run: pnpm --filter domain publish --provenance --access public --no-git-checks --registry https://registry.npmjs.org
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: true
+
+      - name: Publish @line-crm/line-api
+        run: pnpm --filter line-api publish --provenance --access public --no-git-checks --registry https://registry.npmjs.org
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: true

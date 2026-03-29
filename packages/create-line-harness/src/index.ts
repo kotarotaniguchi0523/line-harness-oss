@@ -5,36 +5,36 @@ import { runUpdate } from "./commands/update.js";
 const args = process.argv.slice(2);
 
 function parseArgs(): { command: string; repoDir: string } {
-  let command = "setup";
-  let repoDir = process.cwd();
+	let command = "setup";
+	let repoDir = process.cwd();
 
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === "--repo-dir" && args[i + 1]) {
-      repoDir = resolve(args[i + 1]);
-      i++; // skip next arg
-    } else if (!args[i].startsWith("-")) {
-      command = args[i];
-    }
-  }
+	for (let i = 0; i < args.length; i++) {
+		if (args[i] === "--repo-dir" && args[i + 1]) {
+			repoDir = resolve(args[i + 1]);
+			i++; // skip next arg
+		} else if (!args[i].startsWith("-")) {
+			command = args[i];
+		}
+	}
 
-  return { command, repoDir };
+	return { command, repoDir };
 }
 
 async function main(): Promise<void> {
-  const { command, repoDir } = parseArgs();
+	const { command, repoDir } = parseArgs();
 
-  if (command === "setup") {
-    await runSetup(repoDir);
-  } else if (command === "update") {
-    await runUpdate(repoDir);
-  } else {
-    console.error(`Unknown command: ${command}`);
-    console.error("Usage: create-line-harness [setup|update] [--repo-dir <path>]");
-    process.exit(1);
-  }
+	if (command === "setup") {
+		await runSetup(repoDir);
+	} else if (command === "update") {
+		await runUpdate(repoDir);
+	} else {
+		console.error(`Unknown command: ${command}`);
+		console.error("Usage: create-line-harness [setup|update] [--repo-dir <path>]");
+		process.exit(1);
+	}
 }
 
 main().catch((error) => {
-  console.error("Error:", error.message);
-  process.exit(1);
+	console.error("Error:", error.message);
+	process.exit(1);
 });

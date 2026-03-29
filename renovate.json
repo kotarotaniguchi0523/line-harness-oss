@@ -1,0 +1,106 @@
+{
+	"$schema": "https://docs.renovatebot.com/renovate-schema.json",
+	"extends": [
+		"config:recommended",
+		":pinAllExceptPeerDependencies",
+		"schedule:nonOfficeHours",
+		"helpers:pinGitHubActionDigests",
+		":enableVulnerabilityAlertsWithLabel(security)",
+		"group:monorepos",
+		"group:recommended"
+	],
+	"labels": ["dependencies"],
+	"rangeStrategy": "pin",
+	"minimumReleaseAge": "3 days",
+	"prConcurrentLimit": 5,
+	"dependencyDashboard": true,
+	"dependencyDashboardTitle": "Dependency Dashboard",
+	"rebaseWhen": "conflicted",
+	"platformAutomerge": true,
+	"packageRules": [
+		{
+			"description": "Patch: 自動マージ (CI通過後)",
+			"matchUpdateTypes": ["patch"],
+			"automerge": true,
+			"automergeType": "pr",
+			"automergeStrategy": "squash"
+		},
+		{
+			"description": "Minor: 自動マージ (CI通過後)",
+			"matchUpdateTypes": ["minor"],
+			"automerge": true,
+			"automergeType": "pr",
+			"automergeStrategy": "squash"
+		},
+		{
+			"description": "Major: 手動レビュー必須",
+			"matchUpdateTypes": ["major"],
+			"automerge": false,
+			"labels": ["dependencies", "breaking"],
+			"reviewers": ["team:maintainers"]
+		},
+		{
+			"description": "セキュリティ: 即時自動マージ",
+			"matchUpdateTypes": ["patch", "minor"],
+			"isVulnerabilityAlert": true,
+			"automerge": true,
+			"minimumReleaseAge": "0 days",
+			"schedule": ["at any time"],
+			"labels": ["dependencies", "security"],
+			"prPriority": 10
+		},
+		{
+			"description": "devDependencies: 自動マージ",
+			"matchDepTypes": ["devDependencies"],
+			"automerge": true,
+			"automergeType": "pr",
+			"automergeStrategy": "squash"
+		},
+		{
+			"description": "Cloudflare グループ",
+			"matchPackagePrefixes": ["@cloudflare/", "wrangler"],
+			"groupName": "cloudflare"
+		},
+		{
+			"description": "TanStack グループ",
+			"matchPackagePrefixes": ["@tanstack/"],
+			"groupName": "tanstack"
+		},
+		{
+			"description": "Hono グループ",
+			"matchPackagePrefixes": ["hono", "@hono/"],
+			"groupName": "hono"
+		},
+		{
+			"description": "Storybook グループ",
+			"matchPackagePrefixes": ["storybook", "@storybook/"],
+			"groupName": "storybook"
+		},
+		{
+			"description": "Drizzle グループ",
+			"matchPackagePrefixes": ["drizzle-"],
+			"groupName": "drizzle"
+		},
+		{
+			"description": "Biome グループ",
+			"matchPackagePrefixes": ["@biomejs/"],
+			"groupName": "biome"
+		},
+		{
+			"description": "Vitest グループ",
+			"matchPackagePrefixes": ["vitest", "@vitest/"],
+			"groupName": "vitest"
+		},
+		{
+			"description": "Sentry グループ",
+			"matchPackagePrefixes": ["@sentry/"],
+			"groupName": "sentry"
+		},
+		{
+			"description": "GitHub Actions: SHA ピン固定",
+			"matchManagers": ["github-actions"],
+			"automerge": true,
+			"automergeType": "pr"
+		}
+	]
+}

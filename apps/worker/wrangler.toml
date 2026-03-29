@@ -15,5 +15,26 @@ binding = "DB"
 database_name = "line-crm"
 database_id = "YOUR_D1_DATABASE_ID"
 
+# KV Namespace for caching (job dedup, rate limiting, etc.)
+[[kv_namespaces]]
+binding = "CACHE"
+id = "YOUR_KV_NAMESPACE_ID"
+
+# Queue for background jobs (free tier: 100k messages/day)
+[[queues.producers]]
+binding = "JOB_QUEUE"
+queue = "line-crm-jobs"
+
+[[queues.consumers]]
+queue = "line-crm-jobs"
+max_batch_size = 10
+max_retries = 3
+dead_letter_queue = "line-crm-jobs-dlq"
+
+# R2 Bucket for media assets (images, rich menu assets, form attachments)
+[[r2_buckets]]
+binding = "MEDIA_BUCKET"
+bucket_name = "line-crm-media"
+
 [triggers]
 crons = ["*/5 * * * *"]

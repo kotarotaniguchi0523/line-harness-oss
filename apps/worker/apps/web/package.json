@@ -1,0 +1,35 @@
+{
+	"name": "web",
+	"private": true,
+	"workspaces": [
+		"apps/*",
+		"packages/*"
+	],
+	"type": "module",
+	"scripts": {
+		"dev": "turbo dev",
+		"build": "turbo build",
+		"check-types": "turbo check-types",
+		"dev:web": "turbo -F web dev",
+		"dev:server": "turbo -F server dev",
+		"db:push": "turbo -F @web/db db:push",
+		"db:generate": "turbo -F @web/db db:generate",
+		"deploy": "turbo -F @web/infra deploy",
+		"destroy": "turbo -F @web/infra destroy",
+		"check": "biome check --write ."
+	},
+	"dependencies": {
+		"@web/env": "workspace:*",
+		"dotenv": "catalog:",
+		"zod": "catalog:"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.2.0",
+		"@cloudflare/workers-types": "catalog:",
+		"@types/node": "catalog:",
+		"@web/config": "workspace:*",
+		"turbo": "^2.8.12",
+		"typescript": "^5"
+	},
+	"packageManager": "pnpm@10.31.0"
+}

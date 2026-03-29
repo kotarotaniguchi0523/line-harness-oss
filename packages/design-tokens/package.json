@@ -1,0 +1,15 @@
+{
+	"name": "@line-crm/design-tokens",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": "./src/preset.ts"
+	},
+	"dependencies": {
+		"@pandacss/dev": "^0.50.0"
+	},
+	"devDependencies": {
+		"typescript": "^5.7.0"
+	}
+}

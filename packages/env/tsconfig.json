@@ -1,0 +1,3 @@
+{
+	"extends": "@line-crm/config/tsconfig.base.json"
+}

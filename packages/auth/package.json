@@ -1,0 +1,24 @@
+{
+	"name": "@line-crm/auth",
+	"type": "module",
+	"exports": {
+		".": {
+			"default": "./src/index.ts"
+		},
+		"./*": {
+			"default": "./src/*.ts"
+		}
+	},
+	"scripts": {},
+	"dependencies": {
+		"@line-crm/db": "workspace:*",
+		"@line-crm/env": "workspace:*",
+		"better-auth": "catalog:",
+		"dotenv": "catalog:",
+		"zod": "catalog:"
+	},
+	"devDependencies": {
+		"@line-crm/config": "workspace:*",
+		"typescript": "^5"
+	}
+}

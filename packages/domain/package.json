@@ -1,0 +1,27 @@
+{
+	"name": "@line-crm/domain",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts",
+		"./crm/*": "./src/crm/*",
+		"./marketing/*": "./src/marketing/*",
+		"./automation/*": "./src/automation/*",
+		"./engagement/*": "./src/engagement/*",
+		"./integration/*": "./src/integration/*",
+		"./admin/*": "./src/admin/*",
+		"./shared/*": "./src/shared/*"
+	},
+	"scripts": {
+		"test": "vitest run"
+	},
+	"devDependencies": {
+		"@types/node": "catalog:",
+		"typescript": "^5.7.0",
+		"vitest": "^2.0.0"
+	},
+	"dependencies": {
+		"neverthrow": "^8.2.0"
+	}
+}

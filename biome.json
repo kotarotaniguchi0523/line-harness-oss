@@ -1,0 +1,198 @@
+{
+	"$schema": "https://biomejs.dev/schemas/2.4.9/schema.json",
+	"vcs": {
+		"enabled": true,
+		"clientKind": "git",
+		"useIgnoreFile": true
+	},
+	"files": {
+		"ignoreUnknown": true,
+		"includes": [
+			"**",
+			"!**/dist",
+			"!**/node_modules",
+			"!**/.turbo",
+			"!**/styled-system",
+			"!**/routeTree.gen.ts",
+			"!**/.wrangler",
+			"!**/.alchemy",
+			"!**/.beads",
+			"!**/pnpm-lock.yaml",
+			"!**/bts.jsonc",
+			"!**/*.md",
+			"!.claude",
+			"!.mcp.json",
+			"!**/globals.css"
+		]
+	},
+	"formatter": {
+		"enabled": true,
+		"indentStyle": "tab",
+		"indentWidth": 2,
+		"lineWidth": 120
+	},
+	"javascript": {
+		"formatter": {
+			"quoteStyle": "double",
+			"semicolons": "always"
+		}
+	},
+	"css": {
+		"formatter": {
+			"enabled": true
+		}
+	},
+	"assist": {
+		"actions": {
+			"source": {
+				"organizeImports": "on"
+			}
+		}
+	},
+	"linter": {
+		"enabled": true,
+		"domains": {
+			"react": "all",
+			"test": "all",
+			"drizzle": "all",
+			"project": "recommended",
+			"types": "all"
+		},
+		"rules": {
+			"recommended": true,
+
+			"correctness": {
+				"useExhaustiveDependencies": "warn",
+				"noUndeclaredDependencies": "off",
+				"noUnresolvedImports": "off",
+				"noUndeclaredVariables": "error"
+			},
+
+			"suspicious": {
+				"noExplicitAny": "warn",
+				"noConsole": "off",
+				"noImportCycles": "warn",
+				"noDeprecatedImports": "warn",
+				"noEmptyBlockStatements": "error",
+				"noDoubleEquals": "error",
+				"noAssignInExpressions": "error",
+				"noFallthroughSwitchClause": "error"
+			},
+
+			"complexity": {
+				"noExcessiveCognitiveComplexity": {
+					"level": "warn",
+					"options": { "maxAllowedComplexity": 25 }
+				},
+				"noForEach": "warn",
+				"useFlatMap": "error",
+				"useSimplifiedLogicExpression": "warn",
+				"noUselessSwitchCase": "error"
+			},
+
+			"style": {
+				"noDefaultExport": "off",
+				"useNamingConvention": "off",
+				"useFilenamingConvention": "off",
+				"useImportType": "error",
+				"useExportType": "error",
+				"useNodejsImportProtocol": "error",
+				"noCommonJs": "error",
+				"useConsistentBuiltinInstantiation": "error",
+				"useTemplate": "error",
+				"useExponentiationOperator": "error",
+				"noNonNullAssertion": "warn",
+				"useBlockStatements": "off",
+				"noUnusedTemplateLiteral": "error",
+				"useCollapsedElseIf": "error",
+				"useDefaultSwitchClause": "warn",
+				"useThrowNewError": "error"
+			},
+
+			"performance": {
+				"noAccumulatingSpread": "error",
+				"noBarrelFile": "off",
+				"noDelete": "warn",
+				"useTopLevelRegex": "warn"
+			},
+
+			"security": {
+				"noGlobalEval": "error",
+				"noDangerouslySetInnerHtml": "error"
+			},
+
+			"a11y": {
+				"useSemanticElements": "warn"
+			},
+
+			"nursery": {
+				"useSortedClasses": "off",
+				"noFloatingPromises": "error",
+				"noMisusedPromises": "error",
+				"useAwaitThenable": "error",
+				"noUnnecessaryConditions": "warn",
+				"useImportsFirst": "warn",
+				"useNullishCoalescing": "warn",
+				"useArraySome": "warn"
+			}
+		}
+	},
+	"overrides": [
+		{
+			"includes": ["**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts", "**/__tests__/**"],
+			"linter": {
+				"rules": {
+					"suspicious": {
+						"noExplicitAny": "off",
+						"noConsole": "off"
+					},
+					"complexity": {
+						"noExcessiveCognitiveComplexity": "off"
+					},
+					"nursery": {
+						"noFloatingPromises": "off"
+					},
+					"style": {
+						"noNonNullAssertion": "off"
+					}
+				}
+			}
+		},
+		{
+			"includes": [
+				"**/*.config.ts",
+				"**/*.config.js",
+				"**/*.config.mjs",
+				"**/vite.config.*",
+				"**/vitest.config.*",
+				"**/panda.config.*",
+				"**/drizzle.config.*",
+				"**/tsup.config.*"
+			],
+			"linter": {
+				"rules": {
+					"style": {
+						"noDefaultExport": "off"
+					}
+				}
+			}
+		},
+		{
+			"includes": ["apps/web/src/routes/**"],
+			"linter": {
+				"rules": {
+					"style": {
+						"noDefaultExport": "off",
+						"useComponentExportOnlyModules": "off"
+					}
+				}
+			}
+		},
+		{
+			"includes": ["packages/db/migrations/**"],
+			"linter": {
+				"enabled": false
+			}
+		}
+	]
+}

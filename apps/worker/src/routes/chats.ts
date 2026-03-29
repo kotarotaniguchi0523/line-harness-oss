@@ -1,260 +1,300 @@
-import { Hono } from 'hono';
 import {
-  getOperators,
-  getOperatorById,
-  createOperator,
-  updateOperator,
-  deleteOperator,
-  getChats,
-  getChatById,
-  createChat,
-  updateChat,
-  jstNow,
-} from '@line-crm/db';
-import type { Env } from '../index.js';
+	type CreateChatRequest,
+	CreateChatSchema,
+	type CreateOperatorRequest,
+	CreateOperatorSchema,
+	SendChatMessageSchema,
+	type UpdateChatRequest,
+	UpdateChatSchema,
+} from "@line-crm/contracts";
+import {
+	createChatRepository,
+	createFriendRepository,
+	createOperator,
+	DateTime,
+	deleteOperator,
+	getOperatorById,
+	getOperators,
+	updateOperator,
+} from "@line-crm/db";
+import { chats, friends, messagesLog } from "@line-crm/db/schema";
+import { and, desc, eq } from "drizzle-orm";
+import { Hono } from "hono";
+import type { Env } from "../index.js";
+import { validateJson } from "../middleware/validate.js";
 
-const chats = new Hono<Env>();
+const chatsRoute = new Hono<Env>();
 
 // ========== オペレーターCRUD ==========
 
-chats.get('/api/operators', async (c) => {
-  try {
-    const items = await getOperators(c.env.DB);
-    return c.json({
-      success: true,
-      data: items.map((o) => ({
-        id: o.id,
-        name: o.name,
-        email: o.email,
-        role: o.role,
-        isActive: Boolean(o.is_active),
-        createdAt: o.created_at,
-        updatedAt: o.updated_at,
-      })),
-    });
-  } catch (err) {
-    console.error('GET /api/operators error:', err);
-    return c.json({ success: false, error: 'Internal server error' }, 500);
-  }
+chatsRoute.get("/api/operators", async (c) => {
+	try {
+		const items = await getOperators(c.env.DB);
+		return c.json({
+			success: true,
+			data: items.map((o) => ({
+				id: o.id,
+				name: o.name,
+				email: o.email,
+				role: o.role,
+				isActive: Boolean(o.is_active),
+				createdAt: o.created_at,
+				updatedAt: o.updated_at,
+			})),
+		});
+	} catch (err) {
+		console.error("GET /api/operators error:", err);
+		return c.json({ success: false, error: "Internal server error" }, 500);
+	}
 });
 
-chats.post('/api/operators', async (c) => {
-  try {
-    const body = await c.req.json<{ name: string; email: string; role?: string }>();
-    if (!body.name || !body.email) return c.json({ success: false, error: 'name and email are required' }, 400);
-    const item = await createOperator(c.env.DB, body);
-    return c.json({ success: true, data: { id: item.id, name: item.name, email: item.email, role: item.role } }, 201);
-  } catch (err) {
-    console.error('POST /api/operators error:', err);
-    return c.json({ success: false, error: 'Internal server error' }, 500);
-  }
+chatsRoute.post("/api/operators", validateJson(CreateOperatorSchema), async (c) => {
+	try {
+		const body: CreateOperatorRequest = c.req.valid("json");
+		const item = await createOperator(c.env.DB, body);
+		return c.json({ success: true, data: { id: item.id, name: item.name, email: item.email, role: item.role } }, 201);
+	} catch (err) {
+		console.error("POST /api/operators error:", err);
+		return c.json({ success: false, error: "Internal server error" }, 500);
+	}
 });
 
-chats.put('/api/operators/:id', async (c) => {
-  try {
-    const id = c.req.param('id');
-    const body = await c.req.json();
-    await updateOperator(c.env.DB, id, body);
-    const updated = await getOperatorById(c.env.DB, id);
-    if (!updated) return c.json({ success: false, error: 'Not found' }, 404);
-    return c.json({ success: true, data: { id: updated.id, name: updated.name, email: updated.email, role: updated.role, isActive: Boolean(updated.is_active) } });
-  } catch (err) {
-    console.error('PUT /api/operators/:id error:', err);
-    return c.json({ success: false, error: 'Internal server error' }, 500);
-  }
+chatsRoute.put("/api/operators/:id", async (c) => {
+	try {
+		const id = c.req.param("id");
+		const body = await c.req.json();
+		await updateOperator(c.env.DB, id, body);
+		const updated = await getOperatorById(c.env.DB, id);
+		if (!updated) return c.json({ success: false, error: "Not found" }, 404);
+		return c.json({
+			success: true,
+			data: {
+				id: updated.id,
+				name: updated.name,
+				email: updated.email,
+				role: updated.role,
+				isActive: Boolean(updated.is_active),
+			},
+		});
+	} catch (err) {
+		console.error("PUT /api/operators/:id error:", err);
+		return c.json({ success: false, error: "Internal server error" }, 500);
+	}
 });
 
-chats.delete('/api/operators/:id', async (c) => {
-  try {
-    await deleteOperator(c.env.DB, c.req.param('id'));
-    return c.json({ success: true, data: null });
-  } catch (err) {
-    console.error('DELETE /api/operators/:id error:', err);
-    return c.json({ success: false, error: 'Internal server error' }, 500);
-  }
+chatsRoute.delete("/api/operators/:id", async (c) => {
+	try {
+		await deleteOperator(c.env.DB, c.req.param("id"));
+		return c.json({ success: true, data: null });
+	} catch (err) {
+		console.error("DELETE /api/operators/:id error:", err);
+		return c.json({ success: false, error: "Internal server error" }, 500);
+	}
 });
 
 // ========== チャットCRUD ==========
 
-chats.get('/api/chats', async (c) => {
-  try {
-    const status = c.req.query('status') ?? undefined;
-    const operatorId = c.req.query('operatorId') ?? undefined;
-    const lineAccountId = c.req.query('lineAccountId') ?? undefined;
+chatsRoute.get("/api/chats", async (c) => {
+	try {
+		const status = c.req.query("status") ?? undefined;
+		const operatorId = c.req.query("operatorId") ?? undefined;
+		const lineAccountId = c.req.query("lineAccountId") ?? undefined;
 
-    // JOIN friends to get display_name and picture_url
-    let sql = `SELECT c.*, f.display_name, f.picture_url, f.line_user_id
-               FROM chats c
-               LEFT JOIN friends f ON c.friend_id = f.id`;
-    const conditions: string[] = [];
-    const bindings: unknown[] = [];
+		const db = c.get("db");
 
-    if (status) {
-      conditions.push('c.status = ?');
-      bindings.push(status);
-    }
-    if (operatorId) {
-      conditions.push('c.operator_id = ?');
-      bindings.push(operatorId);
-    }
-    if (lineAccountId) {
-      conditions.push('f.line_account_id = ?');
-      bindings.push(lineAccountId);
-    }
+		// JOIN friends to get display_name and picture_url via Drizzle
+		const conditions: ReturnType<typeof eq>[] = [];
+		if (status) conditions.push(eq(chats.status, status));
+		if (operatorId) conditions.push(eq(chats.operatorId, operatorId));
+		if (lineAccountId) conditions.push(eq(friends.lineAccountId, lineAccountId));
 
-    if (conditions.length > 0) {
-      sql += ' WHERE ' + conditions.join(' AND ');
-    }
-    sql += ' ORDER BY c.last_message_at DESC';
+		const rows = await db
+			.select({
+				id: chats.id,
+				friendId: chats.friendId,
+				displayName: friends.displayName,
+				pictureUrl: friends.pictureUrl,
+				lineUserId: friends.lineUserId,
+				operatorId: chats.operatorId,
+				status: chats.status,
+				notes: chats.notes,
+				lastMessageAt: chats.lastMessageAt,
+				createdAt: chats.createdAt,
+				updatedAt: chats.updatedAt,
+			})
+			.from(chats)
+			.leftJoin(friends, eq(chats.friendId, friends.id))
+			.where(conditions.length > 0 ? and(...conditions) : undefined)
+			.orderBy(desc(chats.lastMessageAt));
 
-    const stmt = bindings.length > 0
-      ? c.env.DB.prepare(sql).bind(...bindings)
-      : c.env.DB.prepare(sql);
-    const result = await stmt.all();
-
-    return c.json({
-      success: true,
-      data: result.results.map((ch: Record<string, unknown>) => ({
-        id: ch.id,
-        friendId: ch.friend_id,
-        friendName: ch.display_name || '名前なし',
-        friendPictureUrl: ch.picture_url || null,
-        operatorId: ch.operator_id,
-        status: ch.status,
-        notes: ch.notes,
-        lastMessageAt: ch.last_message_at,
-        createdAt: ch.created_at,
-        updatedAt: ch.updated_at,
-      })),
-    });
-  } catch (err) {
-    console.error('GET /api/chats error:', err);
-    return c.json({ success: false, error: 'Internal server error' }, 500);
-  }
+		return c.json({
+			success: true,
+			data: rows.map((ch) => ({
+				id: ch.id,
+				friendId: ch.friendId,
+				friendName: ch.displayName || "名前なし",
+				friendPictureUrl: ch.pictureUrl || null,
+				operatorId: ch.operatorId,
+				status: ch.status,
+				notes: ch.notes,
+				lastMessageAt: ch.lastMessageAt,
+				createdAt: ch.createdAt,
+				updatedAt: ch.updatedAt,
+			})),
+		});
+	} catch (err) {
+		console.error("GET /api/chats error:", err);
+		return c.json({ success: false, error: "Internal server error" }, 500);
+	}
 });
 
-chats.get('/api/chats/:id', async (c) => {
-  try {
-    const item = await getChatById(c.env.DB, c.req.param('id'));
-    if (!item) return c.json({ success: false, error: 'Chat not found' }, 404);
+chatsRoute.get("/api/chats/:id", async (c) => {
+	try {
+		const db = c.get("db");
+		const chatRepo = createChatRepository(db);
+		const friendRepo = createFriendRepository(db);
 
-    // 友だち情報を取得
-    const friend = await c.env.DB
-      .prepare(`SELECT display_name, picture_url, line_user_id FROM friends WHERE id = ?`)
-      .bind(item.friend_id)
-      .first<{ display_name: string | null; picture_url: string | null; line_user_id: string }>();
+		const item = await chatRepo.getChatDetail(c.req.param("id"));
+		if (!item) return c.json({ success: false, error: "Chat not found" }, 404);
 
-    // チャットに関連するメッセージログも取得
-    const messages = await c.env.DB
-      .prepare(`SELECT id, friend_id, direction, message_type, content, created_at FROM messages_log WHERE friend_id = ? ORDER BY created_at ASC LIMIT 200`)
-      .bind(item.friend_id)
-      .all();
+		// 友だち情報を取得
+		const friend = item.friendId ? await friendRepo.findById(item.friendId) : null;
 
-    return c.json({
-      success: true,
-      data: {
-        id: item.id,
-        friendId: item.friend_id,
-        friendName: friend?.display_name || '名前なし',
-        friendPictureUrl: friend?.picture_url || null,
-        operatorId: item.operator_id,
-        status: item.status,
-        notes: item.notes,
-        lastMessageAt: item.last_message_at,
-        createdAt: item.created_at,
-        messages: (messages.results as Record<string, unknown>[]).map((m) => ({
-          id: m.id,
-          direction: m.direction,
-          messageType: m.message_type,
-          content: m.content,
-          createdAt: m.created_at,
-        })),
-      },
-    });
-  } catch (err) {
-    console.error('GET /api/chats/:id error:', err);
-    return c.json({ success: false, error: 'Internal server error' }, 500);
-  }
+		// チャットに関連するメッセージログも取得 (Drizzle)
+		const messageRows = await db
+			.select({
+				id: messagesLog.id,
+				friendId: messagesLog.friendId,
+				direction: messagesLog.direction,
+				messageType: messagesLog.messageType,
+				content: messagesLog.content,
+				createdAt: messagesLog.createdAt,
+			})
+			.from(messagesLog)
+			.where(item.friendId ? eq(messagesLog.friendId, item.friendId) : undefined)
+			.orderBy(messagesLog.createdAt)
+			.limit(200);
+
+		return c.json({
+			success: true,
+			data: {
+				id: item.id,
+				friendId: item.friendId,
+				friendName: friend?.displayName || "名前なし",
+				friendPictureUrl: friend?.pictureUrl || null,
+				operatorId: item.operatorId,
+				status: item.status,
+				notes: item.notes,
+				lastMessageAt: item.lastMessageAt,
+				createdAt: item.createdAt,
+				messages: messageRows.map((m) => ({
+					id: m.id,
+					direction: m.direction,
+					messageType: m.messageType,
+					content: m.content,
+					createdAt: m.createdAt,
+				})),
+			},
+		});
+	} catch (err) {
+		console.error("GET /api/chats/:id error:", err);
+		return c.json({ success: false, error: "Internal server error" }, 500);
+	}
 });
 
-chats.post('/api/chats', async (c) => {
-  try {
-    const body = await c.req.json<{ friendId: string; operatorId?: string; lineAccountId?: string | null }>();
-    if (!body.friendId) return c.json({ success: false, error: 'friendId is required' }, 400);
-    const item = await createChat(c.env.DB, body);
-    // Save line_account_id if provided
-    if (body.lineAccountId) {
-      await c.env.DB.prepare(`UPDATE chats SET line_account_id = ? WHERE id = ?`)
-        .bind(body.lineAccountId, item.id).run();
-    }
-    return c.json({ success: true, data: { id: item.id, friendId: item.friend_id, status: item.status } }, 201);
-  } catch (err) {
-    console.error('POST /api/chats error:', err);
-    return c.json({ success: false, error: 'Internal server error' }, 500);
-  }
+chatsRoute.post("/api/chats", validateJson(CreateChatSchema), async (c) => {
+	try {
+		const db = c.get("db");
+		const chatRepo = createChatRepository(db);
+		const body: CreateChatRequest = c.req.valid("json");
+
+		const chatId = await chatRepo.createChat({
+			friendId: body.friendId,
+			operatorId: body.operatorId,
+		});
+
+		return c.json({ success: true, data: { id: chatId, friendId: body.friendId, status: "unread" } }, 201);
+	} catch (err) {
+		console.error("POST /api/chats error:", err);
+		return c.json({ success: false, error: "Internal server error" }, 500);
+	}
 });
 
 // チャットのアサイン/ステータス更新/ノート更新
-chats.put('/api/chats/:id', async (c) => {
-  try {
-    const id = c.req.param('id');
-    const body = await c.req.json<{ operatorId?: string | null; status?: string; notes?: string }>();
-    await updateChat(c.env.DB, id, body);
-    const updated = await getChatById(c.env.DB, id);
-    if (!updated) return c.json({ success: false, error: 'Not found' }, 404);
-    return c.json({
-      success: true,
-      data: { id: updated.id, friendId: updated.friend_id, operatorId: updated.operator_id, status: updated.status, notes: updated.notes },
-    });
-  } catch (err) {
-    console.error('PUT /api/chats/:id error:', err);
-    return c.json({ success: false, error: 'Internal server error' }, 500);
-  }
+chatsRoute.put("/api/chats/:id", validateJson(UpdateChatSchema), async (c) => {
+	try {
+		const db = c.get("db");
+		const chatRepo = createChatRepository(db);
+		const id = c.req.param("id");
+		const body: UpdateChatRequest = c.req.valid("json");
+
+		await chatRepo.updateChatStatus(id, {
+			operatorId: body.operatorId,
+			status: body.status,
+			notes: body.notes,
+		});
+		const updated = await chatRepo.getChatDetail(id);
+		if (!updated) return c.json({ success: false, error: "Not found" }, 404);
+		return c.json({
+			success: true,
+			data: {
+				id: updated.id,
+				friendId: updated.friendId,
+				operatorId: updated.operatorId,
+				status: updated.status,
+				notes: updated.notes,
+			},
+		});
+	} catch (err) {
+		console.error("PUT /api/chats/:id error:", err);
+		return c.json({ success: false, error: "Internal server error" }, 500);
+	}
 });
 
 // オペレーターからメッセージ送信
-chats.post('/api/chats/:id/send', async (c) => {
-  try {
-    const chatId = c.req.param('id');
-    const chat = await getChatById(c.env.DB, chatId);
-    if (!chat) return c.json({ success: false, error: 'Chat not found' }, 404);
+chatsRoute.post("/api/chats/:id/send", validateJson(SendChatMessageSchema), async (c) => {
+	try {
+		const db = c.get("db");
+		const chatRepo = createChatRepository(db);
+		const friendRepo = createFriendRepository(db);
 
-    const body = await c.req.json<{ messageType?: string; content: string }>();
-    if (!body.content) return c.json({ success: false, error: 'content is required' }, 400);
+		const chatId = c.req.param("id");
+		const chat = await chatRepo.getChatDetail(chatId);
+		if (!chat) return c.json({ success: false, error: "Chat not found" }, 404);
 
-    const friend = await c.env.DB
-      .prepare(`SELECT * FROM friends WHERE id = ?`)
-      .bind(chat.friend_id)
-      .first<{ id: string; line_user_id: string }>();
-    if (!friend) return c.json({ success: false, error: 'Friend not found' }, 404);
+		const body = c.req.valid("json");
 
-    // LINE APIでメッセージ送信
-    const { LineClient } = await import('@line-crm/line-sdk');
-    const lineClient = new LineClient(c.env.LINE_CHANNEL_ACCESS_TOKEN);
-    const messageType = body.messageType ?? 'text';
+		const friend = chat.friendId ? await friendRepo.findById(chat.friendId) : null;
+		if (!friend) return c.json({ success: false, error: "Friend not found" }, 404);
 
-    if (messageType === 'text') {
-      await lineClient.pushTextMessage(friend.line_user_id, body.content);
-    } else if (messageType === 'flex') {
-      const contents = JSON.parse(body.content);
-      await lineClient.pushFlexMessage(friend.line_user_id, 'Message', contents);
-    }
+		// LINE APIでメッセージ送信
+		const { LineClient } = await import("@line-crm/line-sdk");
+		const lineClient = new LineClient(c.env.LINE_CHANNEL_ACCESS_TOKEN);
+		const messageType = body.messageType ?? "text";
 
-    // メッセージログに記録
-    const logId = crypto.randomUUID();
-    await c.env.DB
-      .prepare(`INSERT INTO messages_log (id, friend_id, direction, message_type, content, created_at) VALUES (?, ?, 'outgoing', ?, ?, ?)`)
-      .bind(logId, friend.id, messageType, body.content, jstNow())
-      .run();
+		if (messageType === "text") {
+			await lineClient.pushTextMessage(friend.lineUserId, body.content);
+		} else if (messageType === "flex") {
+			const contents = JSON.parse(body.content);
+			await lineClient.pushFlexMessage(friend.lineUserId, "Message", contents);
+		}
 
-    // チャットの最終メッセージ日時を更新
-    await updateChat(c.env.DB, chatId, { status: 'in_progress', lastMessageAt: jstNow() });
+		// メッセージログに記録
+		await friendRepo.logMessage({
+			friendId: friend.id,
+			direction: "outgoing",
+			messageType,
+			content: body.content,
+		});
 
-    return c.json({ success: true, data: { sent: true, messageId: logId } });
-  } catch (err) {
-    console.error('POST /api/chats/:id/send error:', err);
-    return c.json({ success: false, error: 'Internal server error' }, 500);
-  }
+		// チャットの最終メッセージ日時を更新
+		await chatRepo.updateChatStatus(chatId, { status: "in_progress", lastMessageAt: DateTime.now().toISO() });
+
+		return c.json({ success: true, data: { sent: true } });
+	} catch (err) {
+		console.error("POST /api/chats/:id/send error:", err);
+		return c.json({ success: false, error: "Internal server error" }, 500);
+	}
 });
 
-export { chats };
+export { chatsRoute as chats };

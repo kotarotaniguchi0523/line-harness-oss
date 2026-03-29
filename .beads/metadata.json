@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "server",
+  "dolt_database": "line_harness_oss",
+  "project_id": "d0a16936-7c1e-4e45-a92f-7b9abb54b9c5"
+}

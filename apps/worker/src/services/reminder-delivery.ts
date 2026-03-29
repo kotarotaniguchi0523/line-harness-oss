@@ -6,81 +6,58 @@
  */
 
 import {
-  getDueReminderDeliveries,
-  markReminderStepDelivered,
-  completeReminderIfDone,
-  getFriendById,
-  jstNow,
-} from '@line-crm/db';
-import type { LineClient, Message } from '@line-crm/line-sdk';
-import { addJitter, sleep } from './stealth.js';
+	completeReminderIfDone,
+	createDb,
+	DateTime,
+	getDueReminderDeliveries,
+	getFriendById,
+	markReminderStepDelivered,
+} from "@line-crm/db";
+import { messagesLog } from "@line-crm/db/schema";
+import type { LineClient } from "@line-crm/line-sdk";
+import { buildMessage } from "./message-builder.js";
+import { addJitter, sleep } from "./stealth.js";
 
-export async function processReminderDeliveries(
-  db: D1Database,
-  lineClient: LineClient,
-): Promise<void> {
-  const now = jstNow();
-  const dueReminders = await getDueReminderDeliveries(db, now);
+export async function processReminderDeliveries(db: D1Database, lineClient: LineClient): Promise<void> {
+	const now = DateTime.now().toISO();
+	const dueReminders = await getDueReminderDeliveries(db, now);
 
-  for (let i = 0; i < dueReminders.length; i++) {
-    const fr = dueReminders[i];
-    try {
-      // ステルス: バースト回避のためランダム遅延
-      if (i > 0) {
-        await sleep(addJitter(50, 200));
-      }
+	for (let i = 0; i < dueReminders.length; i++) {
+		const fr = dueReminders[i];
+		try {
+			// ステルス: バースト回避のためランダム遅延
+			if (i > 0) {
+				await sleep(addJitter(50, 200));
+			}
 
-      const friend = await getFriendById(db, fr.friend_id);
-      if (!friend || !friend.is_following) {
-        // フォロー解除済み — スキップ
-        continue;
-      }
+			const friend = await getFriendById(db, fr.friend_id);
+			if (!friend?.is_following) {
+				// フォロー解除済み — スキップ
+				continue;
+			}
 
-      for (const step of fr.steps) {
-        const message = buildMessage(step.message_type, step.message_content);
-        await lineClient.pushMessage(friend.line_user_id, [message]);
+			for (const step of fr.steps) {
+				const message = buildMessage(step.message_type, step.message_content);
+				await lineClient.pushMessage(friend.line_user_id, [message]);
 
-        // メッセージログに記録
-        const logId = crypto.randomUUID();
-        await db
-          .prepare(
-            `INSERT INTO messages_log (id, friend_id, direction, message_type, content, created_at)
-             VALUES (?, ?, 'outgoing', ?, ?, ?)`,
-          )
-          .bind(logId, friend.id, step.message_type, step.message_content, jstNow())
-          .run();
+				// メッセージログに記録
+				const drizzle = createDb(db);
+				await drizzle.insert(messagesLog).values({
+					id: crypto.randomUUID(),
+					friendId: friend.id,
+					direction: "outgoing",
+					messageType: step.message_type,
+					content: step.message_content,
+				});
 
-        // 配信済みを記録
-        await markReminderStepDelivered(db, fr.id, step.id);
-      }
+				// 配信済みを記録
+				await markReminderStepDelivered(db, fr.id, step.id);
+			}
 
-      // 全ステップ配信済みかチェック
-      await completeReminderIfDone(db, fr.id, fr.reminder_id);
-    } catch (err) {
-      console.error(`リマインダ配信エラー (friend_reminder ${fr.id}):`, err);
-    }
-  }
-}
-
-function buildMessage(messageType: string, messageContent: string): Message {
-  if (messageType === 'text') {
-    return { type: 'text', text: messageContent };
-  }
-  if (messageType === 'image') {
-    try {
-      const parsed = JSON.parse(messageContent) as { originalContentUrl: string; previewImageUrl: string };
-      return { type: 'image', originalContentUrl: parsed.originalContentUrl, previewImageUrl: parsed.previewImageUrl };
-    } catch {
-      return { type: 'text', text: messageContent };
-    }
-  }
-  if (messageType === 'flex') {
-    try {
-      const contents = JSON.parse(messageContent);
-      return { type: 'flex', altText: 'Reminder', contents };
-    } catch {
-      return { type: 'text', text: messageContent };
-    }
-  }
-  return { type: 'text', text: messageContent };
+			// 全ステップ配信済みかチェック
+			await completeReminderIfDone(db, fr.id, fr.reminder_id);
+		} catch (err) {
+			console.error(`リマインダ配信エラー (friend_reminder ${fr.id}):`, err);
+		}
+	}
 }

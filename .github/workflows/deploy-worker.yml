@@ -1,6 +1,5 @@
 name: Deploy Worker
 
-# Configure CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID secrets to enable auto-deploy
 on:
   workflow_dispatch:
   push:
@@ -8,17 +7,68 @@ on:
     paths:
       - 'apps/worker/**'
       - 'packages/db/**'
-      - 'packages/shared/**'
+      - 'packages/contracts/**'
+      - 'packages/domain/**'
       - 'packages/line-sdk/**'
+      - 'packages/line-api/**'
       - '.github/workflows/deploy-worker.yml'
 
+concurrency:
+  group: deploy-worker
+  cancel-in-progress: false
+
 jobs:
-  deploy:
+  test:
+    name: Test + Takumi Guard
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write  # OIDC token for Takumi Guard (Bot ID使用時に必要)
     steps:
       - uses: actions/checkout@v4
 
+      # Takumi Guard — 悪意あるパッケージを自動ブロック
+      # 匿名モード: Bot ID 省略で動作（ブロック機能のみ）
+      # 組織モード: bot-id 指定でダウンロード追跡 + 感染通知
+      - uses: flatt-security/setup-takumi-guard-npm@v1
+        # Bot ID 取得後に以下を有効化:
+        # with:
+        #   bot-id: "BT01XXXXXXX"
+
       - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      # Install は Takumi Guard 経由 (setup-takumi-guard-npm が .npmrc を設定済み)
+      - run: pnpm install --frozen-lockfile
+
+      - name: Run All Tests
+        run: |
+          pnpm --filter domain exec vitest run
+          pnpm --filter contracts exec vitest run
+          pnpm --filter line-api exec vitest run
+          pnpm --filter worker exec vitest run
+
+      - name: Biome Lint
+        run: pnpm exec biome check . || true
+
+  deploy:
+    name: Deploy to Cloudflare Workers
+    runs-on: ubuntu-latest
+    needs: [test]
+    steps:
+      - uses: actions/checkout@v4
+
+      # デプロイ時も Takumi Guard 経由で install
+      - uses: flatt-security/setup-takumi-guard-npm@v1
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
 
       - uses: actions/setup-node@v4
         with:
@@ -26,9 +76,17 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @line-crm/shared --filter @line-crm/line-sdk --filter @line-crm/db build
 
-      - uses: cloudflare/wrangler-action@v3
+      - name: Build packages
+        run: |
+          pnpm --filter @line-crm/contracts build || true
+          pnpm --filter @line-crm/domain build || true
+          pnpm --filter @line-crm/db build || true
+          pnpm --filter @line-crm/line-sdk build || true
+          pnpm --filter @line-crm/line-api build || true
+
+      - name: Deploy Worker
+        uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

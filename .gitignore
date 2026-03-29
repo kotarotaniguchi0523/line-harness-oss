@@ -10,3 +10,9 @@ dist/
 .env.production
 .env.staging
 apps/web/out/
+
+# Beads / Dolt files (added by bd init)
+.beads/
+.dolt/
+*.db
+.beads-credential-key
