@@ -1,3 +1,4 @@
+import type { LineAccountId, ScenarioId, ScenarioStepId, TagId } from "@line-crm/domain";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { friendScenarios, scenarioSteps, scenarios } from "../schema/index.js";
 import { createScenarioRepository } from "./scenario.repository.js";
@@ -153,7 +154,7 @@ describe("ScenarioRepository", () => {
 			};
 			const repository = createScenarioRepository(db as never);
 
-			const result = await repository.findById("scenario-1");
+			const result = await repository.findById("scenario-1" as ScenarioId);
 
 			expect(result).toEqual({
 				...buildScenario("scenario-1"),
@@ -169,7 +170,7 @@ describe("ScenarioRepository", () => {
 			};
 			const repository = createScenarioRepository(db as never);
 
-			const result = await repository.findById("missing");
+			const result = await repository.findById("missing" as ScenarioId);
 
 			expect(result).toBeNull();
 		});
@@ -189,8 +190,8 @@ describe("ScenarioRepository", () => {
 				name: "Welcome",
 				description: "Scenario description",
 				triggerType: "friend_add",
-				triggerTagId: "tag-1",
-				lineAccountId: "account-1",
+				triggerTagId: "tag-1" as TagId,
+				lineAccountId: "account-1" as LineAccountId,
 			});
 
 			expect(result).toBe("scenario-new");
@@ -214,7 +215,7 @@ describe("ScenarioRepository", () => {
 			const randomUUID = vi.fn().mockReturnValue("step-new");
 			vi.stubGlobal("crypto", { randomUUID });
 
-			const result = await repository.addStep("scenario-1", {
+			const result = await repository.addStep("scenario-1" as ScenarioId, {
 				stepOrder: 2,
 				delayMinutes: 30,
 				messageType: "text",
@@ -243,7 +244,7 @@ describe("ScenarioRepository", () => {
 			};
 			const repository = createScenarioRepository(db as never);
 
-			await repository.removeStep("step-1");
+			await repository.removeStep("step-1" as ScenarioStepId);
 
 			expect(db.delete).toHaveBeenCalledWith(scenarioSteps);
 			expect(deleteChain.where).toHaveBeenCalledWith(
@@ -266,7 +267,7 @@ describe("ScenarioRepository", () => {
 			};
 			const repository = createScenarioRepository(db as never);
 
-			await repository.setActive("scenario-1", false);
+			await repository.setActive("scenario-1" as ScenarioId, false);
 
 			expect(db.update).toHaveBeenCalledWith(scenarios);
 			expect(updateChain.set).toHaveBeenCalledWith({
@@ -284,7 +285,7 @@ describe("ScenarioRepository", () => {
 			};
 			const repository = createScenarioRepository(db as never);
 
-			await repository.delete("scenario-1");
+			await repository.delete("scenario-1" as ScenarioId);
 
 			expect(updateChain.set).toHaveBeenCalledWith({
 				deletedAt: "2026-03-02T09:30:00.000Z",

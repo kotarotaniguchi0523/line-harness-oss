@@ -1,3 +1,4 @@
+import type { FriendId, LineAccountId, LineUserId, TagId } from "@line-crm/domain";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { friends, friendTags, tags } from "../schema/index.js";
 import { createFriendRepository } from "./friend.repository.js";
@@ -185,7 +186,7 @@ describe("FriendRepository", () => {
 			};
 			const repository = createFriendRepository(db as never);
 
-			const result = await repository.listWithTags({ page: 1, limit: 20, tagId: "tag-1" });
+			const result = await repository.listWithTags({ page: 1, limit: 20, tagId: "tag-1" as TagId });
 
 			expect(result.items).toHaveLength(1);
 			expect(result.items[0]?.id).toBe("friend-1");
@@ -233,7 +234,7 @@ describe("FriendRepository", () => {
 			};
 			const repository = createFriendRepository(db as never);
 
-			await repository.listWithTags({ page: 1, limit: 20, lineAccountId: "account-2" });
+			await repository.listWithTags({ page: 1, limit: 20, lineAccountId: "account-2" as LineAccountId });
 
 			expect(countChain.where).toHaveBeenCalledWith(
 				expect.objectContaining({
@@ -255,7 +256,7 @@ describe("FriendRepository", () => {
 			};
 			const repository = createFriendRepository(db as never);
 
-			const result = await repository.findById("friend-1");
+			const result = await repository.findById("friend-1" as FriendId);
 
 			expect(result).toEqual({
 				...buildFriend("friend-1"),
@@ -271,7 +272,7 @@ describe("FriendRepository", () => {
 			};
 			const repository = createFriendRepository(db as never);
 
-			const result = await repository.findById("missing");
+			const result = await repository.findById("missing" as FriendId);
 
 			expect(result).toBeNull();
 			expect(db.select).toHaveBeenCalledTimes(1);
@@ -291,11 +292,11 @@ describe("FriendRepository", () => {
 			vi.stubGlobal("crypto", { randomUUID });
 
 			const result = await repository.upsert({
-				lineUserId: "line-user-1",
+				lineUserId: "line-user-1" as LineUserId,
 				displayName: "New Friend",
 				pictureUrl: "https://example.com/picture.png",
 				statusMessage: "hello",
-				lineAccountId: "account-1",
+				lineAccountId: "account-1" as LineAccountId,
 			});
 
 			expect(result).toBe("friend-new");
@@ -321,7 +322,7 @@ describe("FriendRepository", () => {
 			const repository = createFriendRepository(db as never);
 
 			const result = await repository.upsert({
-				lineUserId: "line-user-1",
+				lineUserId: "line-user-1" as LineUserId,
 				displayName: "Updated Name",
 				pictureUrl: "https://example.com/new.png",
 				statusMessage: "updated",
@@ -348,7 +349,7 @@ describe("FriendRepository", () => {
 			const repository = createFriendRepository(db as never);
 
 			await repository.upsert({
-				lineUserId: "line-user-1",
+				lineUserId: "line-user-1" as LineUserId,
 				displayName: "Updated Name",
 				pictureUrl: null,
 				statusMessage: null,
@@ -368,7 +369,7 @@ describe("FriendRepository", () => {
 			};
 			const repository = createFriendRepository(db as never);
 
-			await repository.assignTag("friend-1", "tag-1");
+			await repository.assignTag("friend-1" as FriendId, "tag-1" as TagId);
 
 			expect(insertChain.values).toHaveBeenCalledWith({ friendId: "friend-1", tagId: "tag-1" });
 			expect(onConflictDoNothing).toHaveBeenCalledTimes(1);
@@ -384,7 +385,7 @@ describe("FriendRepository", () => {
 			};
 			const repository = createFriendRepository(db as never);
 
-			await expect(repository.assignTag("friend-1", "tag-1")).resolves.toBeUndefined();
+			await expect(repository.assignTag("friend-1" as FriendId, "tag-1" as TagId)).resolves.toBeUndefined();
 
 			expect(onConflictDoNothing).toHaveBeenCalledTimes(1);
 		});
@@ -396,7 +397,7 @@ describe("FriendRepository", () => {
 			};
 			const repository = createFriendRepository(db as never);
 
-			await repository.removeTag("friend-1", "tag-1");
+			await repository.removeTag("friend-1" as FriendId, "tag-1" as TagId);
 
 			expect(db.delete).toHaveBeenCalledWith(friendTags);
 			expect(deleteChain.where).toHaveBeenCalledWith(
@@ -419,7 +420,7 @@ describe("FriendRepository", () => {
 			};
 			const repository = createFriendRepository(db as never);
 
-			await repository.updateScore("friend-1", 7);
+			await repository.updateScore("friend-1" as FriendId, 7);
 
 			expect(updateChain.set).toHaveBeenCalledWith(
 				expect.objectContaining({
@@ -452,7 +453,7 @@ describe("FriendRepository", () => {
 			};
 			const repository = createFriendRepository(db as never);
 
-			const result = await repository.count("account-9");
+			const result = await repository.count("account-9" as LineAccountId);
 
 			expect(result).toBe(12);
 			expect(selectChain.where).toHaveBeenCalledWith(
