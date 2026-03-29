@@ -3,6 +3,7 @@ import { AdPlatformsResource } from "./resources/ad-platforms.js";
 import { BroadcastsResource } from "./resources/broadcasts.js";
 import { FormsResource } from "./resources/forms.js";
 import { FriendsResource } from "./resources/friends.js";
+import { ImagesResource } from "./resources/images.js";
 import { RichMenusResource } from "./resources/rich-menus.js";
 import { ScenariosResource } from "./resources/scenarios.js";
 import { StaffResource } from "./resources/staff.js";
@@ -31,6 +32,7 @@ export class LineHarness {
 	readonly forms: FormsResource;
 	readonly adPlatforms: AdPlatformsResource;
 	readonly staff: StaffResource;
+	readonly images: ImagesResource;
 
 	private readonly apiUrl: string;
 	private readonly defaultAccountId: string | undefined;
@@ -70,6 +72,7 @@ export class LineHarness {
 		this.forms = new FormsResource(http);
 		this.adPlatforms = new AdPlatformsResource(http);
 		this.staff = new StaffResource(http);
+		this.images = new ImagesResource(http);
 		this.workflows = new Workflows(this.friends, this.scenarios, this.broadcasts);
 
 		this.createStepScenario = this.workflows.createStepScenario.bind(this.workflows);

@@ -11,7 +11,7 @@ import { DateTime } from "../utils.js";
 
 // --- Types ---
 
-interface DeliveryLogEntry {
+export interface DeliveryLogEntry {
 	readonly sourceType: string;
 	readonly sourceId: string;
 	readonly friendId: string;
@@ -27,7 +27,7 @@ interface DeliveryLogEntry {
 	readonly latencyMs?: number;
 }
 
-interface DeliveryBatchResult {
+export interface DeliveryBatchResult {
 	readonly totalInserted: number;
 	readonly summaryUpdated: boolean;
 }

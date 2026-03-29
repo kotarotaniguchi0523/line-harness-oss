@@ -7,7 +7,7 @@ import type { Env } from "../index.js";
 /** Staff context resolved from session or API key authentication */
 type StaffContext = { id: string; name: string; role: "owner" | "admin" | "staff" };
 
-export async function authMiddleware(c: Context<Env>, next: Next): Promise<Response | undefined> {
+export async function authMiddleware(c: Context<Env>, next: Next): Promise<Response | void> {
 	const path = new URL(c.req.url).pathname;
 
 	// Skip auth for public endpoints (defined in @line-crm/contracts)

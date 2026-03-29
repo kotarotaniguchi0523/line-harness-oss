@@ -19,6 +19,8 @@
 // Protocol: Streamable HTTP (SSE for GET, JSON-RPC for POST, session DELETE)
 // See: https://modelcontextprotocol.io/specification/2025-03-26/basic/transports#streamable-http
 
+import { DynamicWorkerExecutor } from "@cloudflare/codemode";
+import { codeMcpServer } from "@cloudflare/codemode/mcp";
 import { StreamableHTTPTransport } from "@hono/mcp";
 import { mcpAuthRouter, bearerAuth as mcpBearerAuth } from "@hono/mcp/auth";
 import { MCP_OAUTH_CONFIG } from "@line-crm/contracts";
@@ -218,6 +220,71 @@ mcpRoute.all("/mcp", async (c) => {
 	});
 
 	await server.connect(transport);
+	return transport.handleRequest(c);
+});
+
+// ---------------------------------------------------------------------------
+// CodeMode Endpoint — single "code" tool that wraps all MCP tools
+// ---------------------------------------------------------------------------
+// CodeMode collapses 20+ individual tools into a single "write TypeScript"
+// tool. AI agents receive typed function signatures (~1,000 tokens) instead
+// of the full tool schemas (~20,000 tokens), reducing context dramatically.
+//
+// Requires a `WORKER_LOADER` binding (Workers for Platforms) in wrangler.toml:
+//   [unsafe.bindings]
+//   { name = "WORKER_LOADER", type = "worker_loader" }
+//
+// The /mcp/code endpoint mirrors /mcp with identical auth but serves the
+// CodeMode-wrapped server instead.
+
+mcpRoute.use("/mcp/code", async (c, next) => {
+	const provider = createMcpAuthProvider(c.env.DB, c.env);
+	const middleware = mcpBearerAuth({
+		verifyToken: async (token: string) => {
+			try {
+				await provider.verifyAccessToken(token);
+				return true;
+			} catch {
+				return false;
+			}
+		},
+	});
+	return middleware(c, next);
+});
+
+mcpRoute.all("/mcp/code", async (c) => {
+	// Check if WorkerLoader binding is available
+	const workerLoader = (c.env as Record<string, unknown>).WORKER_LOADER as WorkerLoader | undefined;
+	if (!workerLoader) {
+		return c.json(
+			{
+				error: "CodeMode not available",
+				message:
+					'WORKER_LOADER binding is required for CodeMode. Add [unsafe.bindings] { name = "WORKER_LOADER", type = "worker_loader" } to wrangler.toml.',
+			},
+			501,
+		);
+	}
+
+	const upstream = createMcpServerInstance(c.env.DB, c.env);
+
+	const executor = new DynamicWorkerExecutor({
+		loader: workerLoader,
+		timeout: 30_000,
+		globalOutbound: null, // Sandbox is fully isolated — no outbound fetch
+	});
+
+	const codeModeServer = await codeMcpServer({
+		server: upstream,
+		executor,
+	});
+
+	const transport = new StreamableHTTPTransport({
+		sessionIdGenerator: undefined,
+		enableJsonResponse: MCP_CONFIG.enableJsonResponse,
+	});
+
+	await codeModeServer.connect(transport);
 	return transport.handleRequest(c);
 });
 

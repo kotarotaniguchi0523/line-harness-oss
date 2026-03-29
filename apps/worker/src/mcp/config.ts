@@ -46,6 +46,12 @@ export const MCP_TOOLS = {
 	manageTags: "manage_tags",
 	listBroadcasts: "list_broadcasts",
 	accountSummary: "account_summary",
+	manageScenarios: "manage_scenarios",
+	manageBroadcasts: "manage_broadcasts",
+	manageForms: "manage_forms",
+	manageTrackedLinks: "manage_tracked_links",
+	manageRichMenus: "manage_rich_menus",
+	manageFriends: "manage_friends",
 } as const;
 
 // ---------------------------------------------------------------------------

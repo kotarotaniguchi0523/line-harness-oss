@@ -1,5 +1,6 @@
 import { MIDDLEWARE_LIMITS } from "@line-crm/contracts";
 import { createStripeEvent, createTagRepository, getStripeEventByStripeId, getStripeEvents } from "@line-crm/db";
+import type { FriendId, TagId } from "@line-crm/domain";
 import { Hono } from "hono";
 import { timeout } from "hono/timeout";
 import type { Env } from "../index.js";
@@ -160,7 +161,7 @@ stripe.post("/api/integrations/stripe/webhook", timeout(MIDDLEWARE_LIMITS.stripe
 					.bind(`purchased_${productId}`)
 					.first<{ id: string }>();
 				if (tag) {
-					await tagRepo.assignToFriend(friendId, tag.id);
+					await tagRepo.assignToFriend(friendId as FriendId, tag.id as TagId);
 				}
 			}
 
@@ -181,7 +182,7 @@ stripe.post("/api/integrations/stripe/webhook", timeout(MIDDLEWARE_LIMITS.stripe
 				.prepare(`SELECT id FROM tags WHERE name = 'subscription_cancelled'`)
 				.first<{ id: string }>();
 			if (cancelledTag) {
-				await tagRepo.assignToFriend(friendId, cancelledTag.id);
+				await tagRepo.assignToFriend(friendId as FriendId, cancelledTag.id as TagId);
 			}
 		}
 

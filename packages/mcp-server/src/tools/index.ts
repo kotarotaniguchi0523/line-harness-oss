@@ -13,8 +13,14 @@ import { registerGetLinkClicks } from "./get-link-clicks.js";
 import { registerListCrmObjects } from "./list-crm-objects.js";
 import { registerListFriends } from "./list-friends.js";
 import { registerManageAdPlatforms } from "./manage-ad-platforms.js";
+import { registerManageBroadcasts } from "./manage-broadcasts.js";
+import { registerManageForms } from "./manage-forms.js";
+import { registerManageFriends } from "./manage-friends.js";
+import { registerManageRichMenus } from "./manage-rich-menus.js";
+import { registerManageScenarios } from "./manage-scenarios.js";
 import { registerManageStaff } from "./manage-staff.js";
 import { registerManageTags } from "./manage-tags.js";
+import { registerManageTrackedLinks } from "./manage-tracked-links.js";
 import { registerSendMessage } from "./send-message.js";
 
 export function registerAllTools(server: McpServer): void {
@@ -35,4 +41,10 @@ export function registerAllTools(server: McpServer): void {
 	registerManageAdPlatforms(server);
 	registerGetConversionLogs(server);
 	registerManageStaff(server);
+	registerManageScenarios(server);
+	registerManageBroadcasts(server);
+	registerManageForms(server);
+	registerManageTrackedLinks(server);
+	registerManageRichMenus(server);
+	registerManageFriends(server);
 }

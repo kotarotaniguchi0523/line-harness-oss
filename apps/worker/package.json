@@ -10,10 +10,12 @@
 		"test:watch": "vitest"
 	},
 	"dependencies": {
+		"@cloudflare/codemode": "0.3.2",
 		"@hono/mcp": "^0.2.4",
 		"@hono/zod-validator": "^0.7.6",
 		"@line-crm/contracts": "workspace:*",
 		"@line-crm/db": "workspace:*",
+		"drizzle-orm": "^0.39.0",
 		"@line-crm/domain": "workspace:*",
 		"@line-crm/line-sdk": "workspace:*",
 		"@modelcontextprotocol/sdk": "^1.12.1",

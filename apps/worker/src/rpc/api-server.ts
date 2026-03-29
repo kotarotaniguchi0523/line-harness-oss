@@ -18,11 +18,8 @@ interface WorkerEnv {
 	LIFF_URL?: string;
 }
 
-interface StaffContext {
-	id: string;
-	name: string;
-	role: string;
-}
+import type { StaffRole } from "@line-crm/contracts";
+import type { StaffContext } from "./types.js";
 
 /**
  * Root RPC server - unauthenticated entry point.
@@ -56,7 +53,7 @@ class ApiServer extends RpcTarget {
 			return new AuthenticatedSession(this.db, this.workerEnv, {
 				id: staff.id,
 				name: staff.name,
-				role: staff.role,
+				role: staff.role as StaffRole,
 			});
 		}
 
@@ -112,5 +109,5 @@ class AuthenticatedSession extends RpcTarget {
  * Create Cap'n Web RPC response for Cloudflare Workers
  */
 export function handleRpcRequest(request: Request, workerEnv: WorkerEnv): Response {
-	return newWorkersRpcResponse(request, new ApiServer(workerEnv)) as Response;
+	return newWorkersRpcResponse(request, new ApiServer(workerEnv)) as unknown as Response;
 }

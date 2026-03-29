@@ -37,7 +37,7 @@ describe("validateJson", () => {
 		});
 
 		expect(res.status).toBe(200);
-		const data = await res.json();
+		const data = (await res.json()) as Record<string, unknown>;
 		expect(data.body).toEqual({ name: "VIP", color: "#FF0000" });
 	});
 
@@ -65,7 +65,7 @@ describe("validateJson", () => {
 		});
 
 		expect(res.status).toBe(400);
-		const data = await res.json();
+		const data = (await res.json()) as Record<string, unknown>;
 		expect(data.success).toBe(false);
 		expect(data.error).toBe("Validation failed");
 		expect(data.details).toHaveProperty("name");
@@ -82,7 +82,7 @@ describe("validateJson", () => {
 		});
 
 		expect(res.status).toBe(400);
-		const data = await res.json();
+		const data = (await res.json()) as Record<string, unknown>;
 		expect(data.success).toBe(false);
 		expect(data.details).toHaveProperty("color");
 	});
@@ -102,7 +102,7 @@ describe("validateQuery", () => {
 		const res = await app.request("/test?page=2&limit=10");
 
 		expect(res.status).toBe(200);
-		const data = await res.json();
+		const data = (await res.json()) as Record<string, unknown>;
 		expect(data.query).toEqual({ page: 2, limit: 10 });
 	});
 
@@ -113,7 +113,7 @@ describe("validateQuery", () => {
 		const res = await app.request("/test?page=abc");
 
 		expect(res.status).toBe(400);
-		const data = await res.json();
+		const data = (await res.json()) as Record<string, unknown>;
 		expect(data.success).toBe(false);
 		expect(data.error).toBe("Invalid query parameters");
 	});
@@ -134,7 +134,7 @@ describe("validateParam", () => {
 		const res = await app.request(`/test/${testId}`);
 
 		expect(res.status).toBe(200);
-		const data = await res.json();
+		const data = (await res.json()) as Record<string, unknown>;
 		expect(data.id).toBe(testId);
 	});
 
@@ -145,7 +145,7 @@ describe("validateParam", () => {
 		const res = await app.request("/test/not-a-uuid");
 
 		expect(res.status).toBe(400);
-		const data = await res.json();
+		const data = (await res.json()) as Record<string, unknown>;
 		expect(data.success).toBe(false);
 		expect(data.error).toBe("Invalid path parameter");
 	});
@@ -168,7 +168,7 @@ describe("validateParam", () => {
 		});
 
 		expect(res.status).toBe(200);
-		const data = await res.json();
+		const data = (await res.json()) as Record<string, unknown>;
 		expect(data.parentId).toBe(parentId);
 		expect(data.childId).toBe(childId);
 	});

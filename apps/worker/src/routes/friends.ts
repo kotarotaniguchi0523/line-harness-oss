@@ -1,5 +1,6 @@
 import { AssignTagSchema, FriendMetadataSchema, SendFriendMessageSchema, UuidSchema } from "@line-crm/contracts";
 import { createFriendRepository, createScenarioRepository, DateTime } from "@line-crm/db";
+import type { FriendId, LineAccountId, ScenarioId, TagId } from "@line-crm/domain";
 import { sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -30,13 +31,24 @@ function serializeFriend(friend: FriendWithTags) {
 	};
 }
 
-// GET /api/friends - list with pagination
+// GET /api/friends - list with pagination, search, metadata filters
 friends.get("/api/friends", async (c) => {
 	try {
 		const limit = Number(c.req.query("limit") ?? "50");
 		const offset = Number(c.req.query("offset") ?? "0");
 		const tagId = c.req.query("tagId");
 		const lineAccountId = c.req.query("lineAccountId");
+		const search = c.req.query("search");
+
+		// Extract metadata.* query params (e.g. ?metadata.plan=pro)
+		const metadataFilters: Record<string, string> = {};
+		const url = new URL(c.req.url);
+		for (const [key, value] of url.searchParams.entries()) {
+			if (key.startsWith("metadata.")) {
+				const metaKey = key.slice("metadata.".length);
+				if (metaKey) metadataFilters[metaKey] = value;
+			}
+		}
 
 		const db = c.get("db");
 		const friendRepo = createFriendRepository(db);
@@ -45,23 +57,37 @@ friends.get("/api/friends", async (c) => {
 		const result = await friendRepo.listWithTags({
 			page,
 			limit,
-			tagId: tagId as string | undefined,
-			lineAccountId: lineAccountId as string | undefined,
+			tagId: tagId as TagId | undefined,
+			lineAccountId: lineAccountId as LineAccountId | undefined,
+			search: search as string | undefined,
 		});
 
-		const itemsWithTags = result.items.map((friend) => ({
+		// Apply metadata filters in-memory using json_extract equivalent
+		let filteredItems = result.items;
+		const hasMetadataFilters = Object.keys(metadataFilters).length > 0;
+
+		if (hasMetadataFilters) {
+			filteredItems = result.items.filter((friend) => {
+				const metadata = JSON.parse(friend.metadata || "{}");
+				return Object.entries(metadataFilters).every(([key, value]) => String(metadata[key]) === value);
+			});
+		}
+
+		const itemsWithTags = filteredItems.map((friend) => ({
 			...serializeFriend(friend),
 			tags: friend.tags,
 		}));
+
+		const total = hasMetadataFilters ? filteredItems.length : result.total;
 
 		return c.json({
 			success: true,
 			data: {
 				items: itemsWithTags,
-				total: result.total,
+				total,
 				page,
 				limit,
-				hasNextPage: offset + limit < result.total,
+				hasNextPage: hasMetadataFilters ? false : offset + limit < result.total,
 			},
 		});
 	} catch (err) {
@@ -137,7 +163,7 @@ friends.get("/api/friends/:id", validateParam(z.object({ id: UuidSchema })), asy
 		const db = c.get("db");
 		const friendRepo = createFriendRepository(db);
 
-		const friend = await friendRepo.findById(id);
+		const friend = await friendRepo.findById(id as FriendId);
 		if (!friend) {
 			return c.json({ success: false, error: "Friend not found" }, 404);
 		}
@@ -169,14 +195,14 @@ friends.post(
 			const friendRepo = createFriendRepository(db);
 			const scenarioRepo = createScenarioRepository(db);
 
-			await friendRepo.assignTag(friendId, body.tagId);
+			await friendRepo.assignTag(friendId as FriendId, body.tagId as TagId);
 
 			// Enroll in tag_added scenarios that match this tag
 			const allScenarios = await scenarioRepo.list();
 			for (const scenario of allScenarios) {
 				if (scenario.triggerType === "tag_added" && scenario.isActive && scenario.triggerTagId === body.tagId) {
 					// enrollFriend uses onConflictDoNothing, so no need to check existing
-					await scenarioRepo.enrollFriend(friendId, scenario.id, null);
+					await scenarioRepo.enrollFriend(friendId as FriendId, scenario.id as ScenarioId, null);
 				}
 			}
 
@@ -201,7 +227,7 @@ friends.delete(
 			const db = c.get("db");
 			const friendRepo = createFriendRepository(db);
 
-			await friendRepo.removeTag(friendId, tagId);
+			await friendRepo.removeTag(friendId as FriendId, tagId as TagId);
 
 			// イベントバス発火: tag_change
 			await fireEvent(c.env.DB, "tag_change", { friendId, eventData: { tagId, action: "remove" } });
@@ -225,7 +251,7 @@ friends.put(
 			const db = c.get("db");
 			const friendRepo = createFriendRepository(db);
 
-			const friend = await friendRepo.findById(friendId);
+			const friend = await friendRepo.findById(friendId as FriendId);
 			if (!friend) {
 				return c.json({ success: false, error: "Friend not found" }, 404);
 			}
@@ -240,7 +266,7 @@ friends.put(
 				sql`UPDATE friends SET metadata = ${JSON.stringify(merged)}, updated_at = ${now} WHERE id = ${friendId}`,
 			);
 
-			const updated = await friendRepo.findById(friendId);
+			const updated = await friendRepo.findById(friendId as FriendId);
 			if (!updated) {
 				return c.json({ success: false, error: "Friend not found after update" }, 404);
 			}
@@ -296,7 +322,7 @@ friends.post(
 			const db = c.get("db");
 			const friendRepo = createFriendRepository(db);
 
-			const friend = await friendRepo.findById(friendId);
+			const friend = await friendRepo.findById(friendId as FriendId);
 			if (!friend) {
 				return c.json({ success: false, error: "Friend not found" }, 404);
 			}

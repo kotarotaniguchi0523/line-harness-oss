@@ -12,7 +12,7 @@ import { DateTime } from "../utils.js";
 
 // --- Types ---
 
-interface CreateAudienceInput {
+export interface CreateAudienceInput {
 	readonly name: string;
 	readonly description?: string;
 	readonly audienceType: "click" | "upload" | "impression" | "ifa";

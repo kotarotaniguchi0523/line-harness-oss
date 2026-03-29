@@ -44,7 +44,7 @@ export const CACHE_PREFIX = {
 // Types
 // ---------------------------------------------------------------------------
 
-interface CacheOptions {
+export interface CacheOptions {
 	/** TTL in seconds */
 	ttl: number;
 	/** If true, return stale data while revalidating in background */

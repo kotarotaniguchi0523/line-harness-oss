@@ -61,6 +61,7 @@ export type Env = {
 		STRIPE_WEBHOOK_SECRET?: string; // Stripe webhook signing secret for signature verification
 		GOOGLE_CLIENT_ID?: string; // Google OAuth client ID for Calendar token refresh
 		GOOGLE_CLIENT_SECRET?: string; // Google OAuth client secret for Calendar token refresh
+		WORKER_LOADER?: WorkerLoader; // Optional: Workers for Platforms binding for CodeMode sandbox
 	};
 	Variables: {
 		staff: { id: string; name: string; role: "owner" | "admin" | "staff" };

@@ -32,6 +32,7 @@ import {
 import type { Env } from "../index.js";
 import { authMiddleware } from "./auth.js";
 import { backgroundContextMiddleware } from "./background.js";
+import { rateLimitMiddleware } from "./rate-limit.js";
 import { structuredLogger } from "./structured-logger.js";
 
 // ---------------------------------------------------------------------------
@@ -45,6 +46,9 @@ export function applyBaseMiddleware(app: Hono<Env>): void {
 	app.use("*", timing());
 	app.use("*", secureHeaders());
 	app.use("*", cors({ origin: "*" }));
+
+	// Rate limiting (sliding window, in-memory)
+	app.use("*", rateLimitMiddleware);
 
 	// Body size protection (DoS defense)
 	app.use("*", bodyLimit({ maxSize: MIDDLEWARE_LIMITS.defaultBodyMaxBytes }));

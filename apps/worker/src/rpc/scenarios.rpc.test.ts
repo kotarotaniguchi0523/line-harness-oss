@@ -34,8 +34,8 @@ describe("ScenariosRpc", () => {
 	const uuid2 = "660e8400-e29b-41d4-a716-446655440001";
 	const uuid3 = "770e8400-e29b-41d4-a716-446655440002";
 
-	const staffContext = { id: "staff-1", name: "Alice", role: "staff" };
-	const adminContext = { id: "admin-1", name: "Bob", role: "admin" };
+	const staffContext = { id: "staff-1", name: "Alice", role: "staff" as const };
+	const adminContext = { id: "admin-1", name: "Bob", role: "admin" as const };
 
 	beforeEach(() => {
 		for (const fn of Object.values(queries)) fn.mockReset();

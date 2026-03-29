@@ -17,6 +17,7 @@ import {
 	removeTagFromFriend,
 } from "@line-crm/db";
 import { friends } from "@line-crm/db/schema";
+import type { FriendId } from "@line-crm/domain";
 import { LineClient } from "@line-crm/line-sdk";
 import { eq } from "drizzle-orm";
 import type { EventPayload } from "./event-bus.js";
@@ -63,7 +64,7 @@ type ActionHandler<K extends keyof ActionParams> = (
 async function resolveLineUserId(db: D1Database, friendId: string): Promise<string | null> {
 	const drizzle = createDb(db);
 	const friendRepo = createFriendRepository(drizzle);
-	const friend = await friendRepo.findById(friendId);
+	const friend = await friendRepo.findById(friendId as FriendId);
 	return friend?.lineUserId ?? null;
 }
 
@@ -130,7 +131,7 @@ const handlers: { [K in keyof ActionParams]: ActionHandler<K> } = {
 	set_metadata: async (deps, friendId, params) => {
 		const drizzle = createDb(deps.db);
 		const friendRepo = createFriendRepository(drizzle);
-		const existing = await friendRepo.findById(friendId);
+		const existing = await friendRepo.findById(friendId as FriendId);
 		const current = JSON.parse(existing?.metadata || "{}") as Record<string, unknown>;
 		const patch = JSON.parse(params.data || "{}") as Record<string, unknown>;
 		const merged = { ...current, ...patch };

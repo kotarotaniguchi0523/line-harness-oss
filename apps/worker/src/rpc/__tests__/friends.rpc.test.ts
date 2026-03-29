@@ -26,7 +26,7 @@ describe("FriendsRpc safeParse validation", () => {
 		removeTag: vi.fn(),
 	};
 
-	const staff = { id: "staff-1", name: "Alice", role: "staff" };
+	const staff = { id: "staff-1", name: "Alice", role: "staff" as const };
 
 	beforeEach(() => {
 		for (const fn of Object.values(queries)) fn.mockReset();

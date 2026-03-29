@@ -9,8 +9,9 @@
 	"exports": {
 		".": "./src/index.ts",
 		"./schema": "./src/schema/index.ts",
+		"./schema/*": "./src/schema/*",
 		"./drizzle": "./src/drizzle.ts",
-		"./repositories/*": "./src/repositories/*"
+		"./repositories/*": "./src/repositories/*.ts"
 	},
 	"files": [
 		"src",

@@ -8,6 +8,7 @@ import {
 	DateTime,
 } from "@line-crm/db";
 import { chats, friendScenarios, friends, lineAccounts } from "@line-crm/db/schema";
+import type { FriendId, LineAccountId, LineUserId, ScenarioId } from "@line-crm/domain";
 import type {
 	FollowEvent,
 	GroupSource,
@@ -144,7 +145,7 @@ async function enrollFriendAddScenarios(
 				.where(and(eq(friendScenarios.friendId, friend.id), eq(friendScenarios.scenarioId, scenario.id)));
 			if (existing) continue;
 
-			const friendScenarioId = await scenarioRepo.enrollFriend(friend.id, scenario.id, null);
+			const friendScenarioId = await scenarioRepo.enrollFriend(friend.id as FriendId, scenario.id as ScenarioId, null);
 
 			try {
 				await deliverFirstStepImmediately(
@@ -270,13 +271,13 @@ async function handleFollowEvent(
 	}
 
 	await friendRepo.upsert({
-		lineUserId: userId,
+		lineUserId: userId as LineUserId,
 		displayName: profile?.displayName ?? null,
 		pictureUrl: profile?.pictureUrl ?? null,
 		statusMessage: profile?.statusMessage ?? null,
-		lineAccountId: lineAccountId ?? undefined,
+		lineAccountId: (lineAccountId ?? undefined) as LineAccountId | undefined,
 	});
-	const friend = await friendRepo.findByLineUserId(userId);
+	const friend = await friendRepo.findByLineUserId(userId as LineUserId);
 	if (!friend) return;
 
 	if (lineAccountId) {
@@ -336,7 +337,7 @@ async function handleGroupTextMessage(
 
 	let friend = null;
 	if (senderUserId) {
-		friend = await friendRepo.findByLineUserId(senderUserId);
+		friend = await friendRepo.findByLineUserId(senderUserId as LineUserId);
 		if (!friend && groupId) {
 			try {
 				const memberProfile =
@@ -344,12 +345,12 @@ async function handleGroupTextMessage(
 						? await lineClient.getGroupMemberProfile(groupId, senderUserId)
 						: await lineClient.getRoomMemberProfile(groupId, senderUserId);
 				await friendRepo.upsert({
-					lineUserId: senderUserId,
+					lineUserId: senderUserId as LineUserId,
 					displayName: memberProfile.displayName ?? null,
 					pictureUrl: memberProfile.pictureUrl ?? null,
 					statusMessage: null,
 				});
-				friend = await friendRepo.findByLineUserId(senderUserId);
+				friend = await friendRepo.findByLineUserId(senderUserId as LineUserId);
 			} catch (err) {
 				console.error("Failed to get group member profile for", senderUserId, err);
 			}
@@ -623,7 +624,7 @@ async function handleDirectTextMessage(
 	const chatRepo = createChatRepository(db);
 	const userId = event.source.userId;
 
-	const friend = await friendRepo.findByLineUserId(userId);
+	const friend = await friendRepo.findByLineUserId(userId as LineUserId);
 	if (!friend) return;
 
 	await friendRepo.logMessage({
@@ -653,7 +654,7 @@ async function handleDirectTextMessage(
 	const isAutoKeyword = autoKeywords.some((k) => incomingText === k);
 	const isTimeCommand = TIME_COMMAND_PATTERN.test(incomingText);
 	if (!(isAutoKeyword || isTimeCommand)) {
-		await chatRepo.upsertOnMessage(friend.id);
+		await chatRepo.upsertOnMessage(friend.id as FriendId);
 	}
 
 	// Preferred delivery time
@@ -705,8 +706,8 @@ async function handleEvent(
 		const userId = event.source.type === "user" ? event.source.userId : undefined;
 		if (!userId) return;
 		const friendRepo = createFriendRepository(db);
-		const friend = await friendRepo.findByLineUserId(userId);
-		if (friend) await friendRepo.setUnfollowed(friend.id);
+		const friend = await friendRepo.findByLineUserId(userId as LineUserId);
+		if (friend) await friendRepo.setUnfollowed(friend.id as FriendId);
 		return;
 	}
 

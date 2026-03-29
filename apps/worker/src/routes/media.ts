@@ -45,14 +45,15 @@ media.post(
 	timeout(MIDDLEWARE_LIMITS.mediaUploadTimeoutMs),
 	async (c) => {
 		const formData = await c.req.formData();
-		const file = formData.get("file");
+		const rawFile = formData.get("file");
 		const purpose = formData.get("purpose");
 		const lineAccountId = formData.get("lineAccountId");
 
 		// --- Field presence validation ---
-		if (!(file instanceof File)) {
+		if (!rawFile || typeof rawFile === "string") {
 			return c.json({ success: false, error: 'Field "file" is required and must be a File' }, 400);
 		}
+		const file = rawFile as unknown as File;
 
 		if (typeof purpose !== "string" || !isValidPurpose(purpose)) {
 			return c.json(

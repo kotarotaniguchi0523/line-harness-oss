@@ -10,6 +10,7 @@ import {
 	getScenarioSteps,
 } from "@line-crm/db";
 import { messagesLog } from "@line-crm/db/schema";
+import type { FriendId } from "@line-crm/domain";
 import type { LineClient } from "@line-crm/line-sdk";
 import { buildMessage } from "./message-builder.js";
 import { addJitter, jitterDeliveryTime, sleep } from "./stealth.js";
@@ -26,14 +27,14 @@ type ConditionEvaluator = (db: D1Database, friendId: string, value: string) => P
 async function friendHasTag(db: D1Database, friendId: string, tagId: string): Promise<boolean> {
 	const drizzle = createDb(db);
 	const tagRepo = createTagRepository(drizzle);
-	const friendTags = await tagRepo.getByFriend(friendId);
+	const friendTags = await tagRepo.getByFriend(friendId as FriendId);
 	return friendTags.some((t) => t.id === tagId);
 }
 
 async function getFriendMetadata(db: D1Database, friendId: string): Promise<Record<string, unknown>> {
 	const drizzle = createDb(db);
 	const friendRepo = createFriendRepository(drizzle);
-	const friend = await friendRepo.findById(friendId);
+	const friend = await friendRepo.findById(friendId as FriendId);
 	return JSON.parse(friend?.metadata || "{}") as Record<string, unknown>;
 }
 

@@ -9,6 +9,7 @@ import type {
 	FriendScenario as DbFriendScenario,
 	Scenario as DbScenario,
 	ScenarioStep as DbScenarioStep,
+	MessageType,
 } from "@line-crm/db";
 import {
 	createScenario,
@@ -22,6 +23,7 @@ import {
 	updateScenario,
 	updateScenarioStep,
 } from "@line-crm/db";
+import type { LineAccountId } from "@line-crm/domain";
 import { Hono } from "hono";
 import { z } from "zod";
 import type { Env } from "../index.js";
@@ -79,7 +81,7 @@ scenarios.get("/api/scenarios", async (c) => {
 		const db = c.get("db");
 		const scenarioRepo = createScenarioRepository(db);
 		const lineAccountId = c.req.query("lineAccountId");
-		const items = await scenarioRepo.list(lineAccountId);
+		const items = await scenarioRepo.list(lineAccountId as LineAccountId | undefined);
 		return c.json({
 			success: true,
 			data: items.map((row) => ({
@@ -212,7 +214,7 @@ scenarios.post(
 				scenarioId,
 				stepOrder: body.stepOrder,
 				delayMinutes: body.delayMinutes ?? 0,
-				messageType: body.messageType,
+				messageType: body.messageType as MessageType,
 				messageContent: body.messageContent,
 				conditionType: body.conditionType ?? null,
 				conditionValue: body.conditionValue ?? null,
@@ -240,7 +242,7 @@ scenarios.put(
 			const updated = await updateScenarioStep(c.env.DB, stepId, {
 				step_order: body.stepOrder,
 				delay_minutes: body.delayMinutes,
-				message_type: body.messageType,
+				message_type: body.messageType as MessageType | undefined,
 				message_content: body.messageContent,
 				condition_type: body.conditionType,
 				condition_value: body.conditionValue,

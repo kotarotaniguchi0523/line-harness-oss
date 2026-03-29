@@ -16,6 +16,7 @@ import {
 	upsertFriend,
 } from "@line-crm/db";
 import { friendScenarios, friends, tags } from "@line-crm/db/schema";
+import type { FriendId, LineAccountId, ScenarioId, TagId } from "@line-crm/domain";
 import { and, eq } from "drizzle-orm";
 import { Hono } from "hono";
 import type { Env } from "../index.js";
@@ -486,7 +487,7 @@ async function enrollFriendAddScenariosViaOAuth(
 			.where(and(eq(friendScenarios.friendId, friend.id), eq(friendScenarios.scenarioId, scenario.id)));
 		if (existing) continue;
 
-		await scenarioRepo.enrollFriend(friend.id, scenario.id, null);
+		await scenarioRepo.enrollFriend(friend.id as FriendId, scenario.id as ScenarioId, null);
 
 		const firstStep = scenario.steps[0];
 		if (firstStep && firstStep.delayMinutes === 0) {
@@ -773,7 +774,7 @@ liffRoutes.get("/api/analytics/ref-summary", async (c) => {
 				latest_at: string | null;
 			}>();
 
-		const totalFriends = await friendRepo.count(lineAccountId || undefined);
+		const totalFriends = await friendRepo.count((lineAccountId || undefined) as LineAccountId | undefined);
 
 		// TODO: migrate to Drizzle repository (ref_code column not in Drizzle schema)
 		const refStmt = lineAccountId
@@ -1051,7 +1052,7 @@ async function applyXHarnessActions(db: Database, friendId: string, result: XHar
 			// Find or create the tag by name
 			const [tagRow] = await db.select({ id: tags.id }).from(tags).where(eq(tags.name, result.tag));
 			const tagId = tagRow?.id ?? (await tagRepo.create({ name: result.tag }));
-			await tagRepo.assignToFriend(friendId, tagId);
+			await tagRepo.assignToFriend(friendId as FriendId, tagId as TagId);
 			console.log(`X Harness: added tag "${result.tag}" to friend ${friendId}`);
 		} catch (err) {
 			console.error(`X Harness: failed to add tag "${result.tag}":`, err);
@@ -1061,7 +1062,7 @@ async function applyXHarnessActions(db: Database, friendId: string, result: XHar
 	// Start scenario if specified
 	if (result.scenarioId) {
 		try {
-			await scenarioRepo.enrollFriend(friendId, result.scenarioId, null);
+			await scenarioRepo.enrollFriend(friendId as FriendId, result.scenarioId as ScenarioId, null);
 			console.log(`X Harness: enrolled friend ${friendId} in scenario ${result.scenarioId}`);
 		} catch (err) {
 			console.error("X Harness: failed to enroll in scenario:", err);

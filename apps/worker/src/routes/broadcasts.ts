@@ -1,5 +1,5 @@
 import { CreateBroadcastSchema, SegmentConditionSchema, UpdateBroadcastSchema, UuidSchema } from "@line-crm/contracts";
-import type { Broadcast as DbBroadcast } from "@line-crm/db";
+import type { BroadcastMessageType, Broadcast as DbBroadcast } from "@line-crm/db";
 import {
 	createBroadcast,
 	createBroadcastRepository,
@@ -7,6 +7,7 @@ import {
 	getBroadcastById,
 	updateBroadcast,
 } from "@line-crm/db";
+import type { LineAccountId } from "@line-crm/domain";
 import { LineClient } from "@line-crm/line-sdk";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -40,7 +41,7 @@ broadcasts.get("/api/broadcasts", async (c) => {
 		const db = c.get("db");
 		const broadcastRepo = createBroadcastRepository(db);
 		const lineAccountId = c.req.query("lineAccountId");
-		const items = await broadcastRepo.list(lineAccountId);
+		const items = await broadcastRepo.list(lineAccountId as LineAccountId | undefined);
 		return c.json({
 			success: true,
 			data: items.map((row) => ({
@@ -88,7 +89,7 @@ broadcasts.post("/api/broadcasts", validateJson(CreateBroadcastSchema), async (c
 
 		const broadcast = await createBroadcast(c.env.DB, {
 			title: body.title,
-			messageType: body.messageType,
+			messageType: body.messageType as BroadcastMessageType,
 			messageContent: body.messageContent,
 			targetType: body.targetType,
 			targetTagId: body.targetTagId ?? null,
@@ -138,7 +139,7 @@ broadcasts.put(
 
 			const updated = await updateBroadcast(c.env.DB, id, {
 				title: body.title,
-				message_type: body.messageType,
+				message_type: body.messageType as BroadcastMessageType | undefined,
 				message_content: body.messageContent,
 				target_type: body.targetType,
 				target_tag_id: body.targetTagId,

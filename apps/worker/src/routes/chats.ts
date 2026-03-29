@@ -18,6 +18,7 @@ import {
 	updateOperator,
 } from "@line-crm/db";
 import { chats, friends, messagesLog } from "@line-crm/db/schema";
+import type { ChatId, FriendId, OperatorId } from "@line-crm/domain";
 import { and, desc, eq } from "drizzle-orm";
 import { Hono } from "hono";
 import type { Env } from "../index.js";
@@ -154,11 +155,11 @@ chatsRoute.get("/api/chats/:id", async (c) => {
 		const chatRepo = createChatRepository(db);
 		const friendRepo = createFriendRepository(db);
 
-		const item = await chatRepo.getChatDetail(c.req.param("id"));
+		const item = await chatRepo.getChatDetail(c.req.param("id") as ChatId);
 		if (!item) return c.json({ success: false, error: "Chat not found" }, 404);
 
 		// 友だち情報を取得
-		const friend = item.friendId ? await friendRepo.findById(item.friendId) : null;
+		const friend = item.friendId ? await friendRepo.findById(item.friendId as FriendId) : null;
 
 		// チャットに関連するメッセージログも取得 (Drizzle)
 		const messageRows = await db
@@ -209,8 +210,8 @@ chatsRoute.post("/api/chats", validateJson(CreateChatSchema), async (c) => {
 		const body: CreateChatRequest = c.req.valid("json");
 
 		const chatId = await chatRepo.createChat({
-			friendId: body.friendId,
-			operatorId: body.operatorId,
+			friendId: body.friendId as FriendId,
+			operatorId: body.operatorId as OperatorId | undefined,
 		});
 
 		return c.json({ success: true, data: { id: chatId, friendId: body.friendId, status: "unread" } }, 201);
@@ -228,12 +229,12 @@ chatsRoute.put("/api/chats/:id", validateJson(UpdateChatSchema), async (c) => {
 		const id = c.req.param("id");
 		const body: UpdateChatRequest = c.req.valid("json");
 
-		await chatRepo.updateChatStatus(id, {
+		await chatRepo.updateChatStatus(id as ChatId, {
 			operatorId: body.operatorId,
 			status: body.status,
 			notes: body.notes,
 		});
-		const updated = await chatRepo.getChatDetail(id);
+		const updated = await chatRepo.getChatDetail(id as ChatId);
 		if (!updated) return c.json({ success: false, error: "Not found" }, 404);
 		return c.json({
 			success: true,
@@ -259,12 +260,12 @@ chatsRoute.post("/api/chats/:id/send", validateJson(SendChatMessageSchema), asyn
 		const friendRepo = createFriendRepository(db);
 
 		const chatId = c.req.param("id");
-		const chat = await chatRepo.getChatDetail(chatId);
+		const chat = await chatRepo.getChatDetail(chatId as ChatId);
 		if (!chat) return c.json({ success: false, error: "Chat not found" }, 404);
 
 		const body = c.req.valid("json");
 
-		const friend = chat.friendId ? await friendRepo.findById(chat.friendId) : null;
+		const friend = chat.friendId ? await friendRepo.findById(chat.friendId as FriendId) : null;
 		if (!friend) return c.json({ success: false, error: "Friend not found" }, 404);
 
 		// LINE APIでメッセージ送信
@@ -288,7 +289,7 @@ chatsRoute.post("/api/chats/:id/send", validateJson(SendChatMessageSchema), asyn
 		});
 
 		// チャットの最終メッセージ日時を更新
-		await chatRepo.updateChatStatus(chatId, { status: "in_progress", lastMessageAt: DateTime.now().toISO() });
+		await chatRepo.updateChatStatus(chatId as ChatId, { status: "in_progress", lastMessageAt: DateTime.now().toISO() });
 
 		return c.json({ success: true, data: { sent: true } });
 	} catch (err) {

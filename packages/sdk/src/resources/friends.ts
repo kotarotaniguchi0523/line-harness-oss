@@ -12,8 +12,15 @@ export class FriendsResource {
 		if (params?.limit !== undefined) query.set("limit", String(params.limit));
 		if (params?.offset !== undefined) query.set("offset", String(params.offset));
 		if (params?.tagId) query.set("tagId", params.tagId);
+		if (params?.search) query.set("search", params.search);
 		const accountId = params?.accountId ?? this.defaultAccountId;
 		if (accountId) query.set("lineAccountId", accountId);
+		// Metadata filters: { plan: "pro" } -> metadata.plan=pro
+		if (params?.metadata) {
+			for (const [key, value] of Object.entries(params.metadata)) {
+				query.set(`metadata.${key}`, value);
+			}
+		}
 		const qs = query.toString();
 		const path = qs ? `/api/friends?${qs}` : "/api/friends";
 		const res = await this.http.get<ApiResponse<PaginatedData<Friend>>>(path);
