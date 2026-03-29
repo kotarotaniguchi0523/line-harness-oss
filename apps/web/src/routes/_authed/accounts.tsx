@@ -2,17 +2,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { css } from "../../../styled-system/css";
+import { lineAccountsQueryOptions } from "../../lib/query-config";
 import { fetchApi } from "../../lib/rpc";
-
-interface LineAccount {
-	id: string;
-	name: string;
-	channelId: string;
-	isActive: boolean;
-	channelAccessToken: string;
-	channelSecret: string;
-	createdAt: string;
-}
 
 interface LineAccountCreateData {
 	channelId: string;
@@ -28,10 +19,7 @@ function AccountsPage() {
 	const [showCreate, setShowCreate] = useState(false);
 	const [form, setForm] = useState({ channelId: "", name: "", channelAccessToken: "", channelSecret: "" });
 
-	const accounts = useQuery({
-		queryKey: ["line-accounts"],
-		queryFn: () => fetchApi<{ success: true; data: LineAccount[] }>("/api/line-accounts"),
-	});
+	const accounts = useQuery(lineAccountsQueryOptions.list());
 	const createMutation = useMutation({
 		mutationFn: (data: LineAccountCreateData) =>
 			fetchApi("/api/line-accounts", { method: "POST", body: JSON.stringify(data) }),

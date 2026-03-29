@@ -3,7 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Suspense, useState } from "react";
 import { z } from "zod";
 import { css } from "../../../styled-system/css";
-import { queryKeys, queryOptionsConfig } from "../../lib/query-config";
+import { chatsQueryOptions, groupChatsQueryOptions, queryKeys } from "../../lib/query-config";
 import { fetchApi } from "../../lib/rpc";
 
 // ---------------------------------------------------------------------------
@@ -93,21 +93,27 @@ const chatsSearchSchema = z.object({
 // ---------------------------------------------------------------------------
 export const Route = createFileRoute("/_authed/chats")({
 	validateSearch: chatsSearchSchema,
-	loader: async ({ context: { queryClient }, search: { mode, status } }) => {
+	loaderDeps: ({ search: { mode, status } }) => ({ mode, status }),
+	loader: async ({ context: { queryClient }, deps: { mode, status } }) => {
 		if (mode === "group") {
-			await queryClient.ensureQueryData({
-				...queryOptionsConfig.groupChats.list(status ? { status } : undefined),
-				queryFn: () =>
-					fetchApi<{ success: true; data: GroupChat[] }>(`/api/chats/groups${status ? `?status=${status}` : ""}`),
-			});
+			await queryClient.ensureQueryData(groupChatsQueryOptions.list(status ? { status } : undefined));
 		} else {
-			await queryClient.ensureQueryData({
-				...queryOptionsConfig.chats.list(status ? { status } : undefined),
-				queryFn: () => fetchApi<{ success: true; data: Chat[] }>(`/api/chats${status ? `?status=${status}` : ""}`),
-			});
+			await queryClient.ensureQueryData(chatsQueryOptions.list(status ? { status } : undefined));
 		}
 	},
 	component: ChatsPage,
+	pendingComponent: () => (
+		<div className={css({ animation: "pulse", display: "flex", flexDirection: "column", gap: "4" })}>
+			<div className={css({ h: "8", w: "48", borderRadius: "md", bg: "gray.200" })} />
+			<div className={css({ h: "64", borderRadius: "md", bg: "gray.100" })} />
+		</div>
+	),
+	errorComponent: ({ error }) => (
+		<div className={css({ p: "6", borderRadius: "lg", borderWidth: "1px", borderColor: "red.200", bg: "red.50" })}>
+			<h2 className={css({ fontSize: "lg", fontWeight: "bold", color: "red.800" })}>読み込みエラー</h2>
+			<p className={css({ mt: "2", fontSize: "sm", color: "red.700" })}>{error.message}</p>
+		</div>
+	),
 });
 
 // ---------------------------------------------------------------------------
@@ -283,11 +289,7 @@ function DirectChatList({
 	selectedChatId: string | null;
 	onSelectChat: (id: string) => void;
 }) {
-	const { data } = useSuspenseQuery({
-		...queryOptionsConfig.chats.list(statusFilter ? { status: statusFilter } : undefined),
-		queryFn: () =>
-			fetchApi<{ success: true; data: Chat[] }>(`/api/chats${statusFilter ? `?status=${statusFilter}` : ""}`),
-	});
+	const { data } = useSuspenseQuery(chatsQueryOptions.list(statusFilter ? { status: statusFilter } : undefined));
 
 	const chatList = data.data;
 
@@ -360,10 +362,7 @@ function DirectChatThread({ chatId }: { chatId: string }) {
 	const queryClient = useQueryClient();
 	const [message, setMessage] = useState("");
 
-	const { data } = useSuspenseQuery({
-		...queryOptionsConfig.chats.detail(chatId),
-		queryFn: () => fetchApi<{ success: true; data: ChatDetail }>(`/api/chats/${chatId}`),
-	});
+	const { data } = useSuspenseQuery(chatsQueryOptions.detail(chatId));
 
 	const sendMutation = useMutation({
 		mutationFn: (content: string) =>
@@ -544,13 +543,7 @@ function GroupChatList({
 	selectedGroupId: string | null;
 	onSelectGroup: (groupId: string) => void;
 }) {
-	const { data } = useSuspenseQuery({
-		...queryOptionsConfig.groupChats.list(statusFilter ? { status: statusFilter } : undefined),
-		queryFn: () =>
-			fetchApi<{ success: true; data: GroupChat[] }>(
-				`/api/chats/groups${statusFilter ? `?status=${statusFilter}` : ""}`,
-			),
-	});
+	const { data } = useSuspenseQuery(groupChatsQueryOptions.list(statusFilter ? { status: statusFilter } : undefined));
 
 	const groups = data.data;
 
@@ -647,10 +640,7 @@ function GroupChatThread({ groupId }: { groupId: string }) {
 	const queryClient = useQueryClient();
 	const [message, setMessage] = useState("");
 
-	const { data } = useSuspenseQuery({
-		...queryOptionsConfig.groupChats.messages(groupId),
-		queryFn: () => fetchApi<{ success: true; data: GroupChatDetail }>(`/api/chats/groups/${groupId}/messages`),
-	});
+	const { data } = useSuspenseQuery(groupChatsQueryOptions.messages(groupId));
 
 	const sendMutation = useMutation({
 		mutationFn: (content: string) =>

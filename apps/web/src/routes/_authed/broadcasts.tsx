@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { css } from "../../../styled-system/css";
+import { broadcastsQueryOptions, tagsQueryOptions } from "../../lib/query-config";
 import { fetchApi } from "../../lib/rpc";
 
 export const Route = createFileRoute("/_authed/broadcasts")({
@@ -28,14 +29,8 @@ function BroadcastsPage() {
 		sendNow: true,
 	});
 
-	const broadcasts = useQuery({
-		queryKey: ["broadcasts"],
-		queryFn: () => fetchApi<{ success: true; data: Broadcast[] }>("/api/broadcasts"),
-	});
-	const tags = useQuery({
-		queryKey: ["tags"],
-		queryFn: () => fetchApi<{ success: true; data: { id: string; name: string }[] }>("/api/tags"),
-	});
+	const broadcasts = useQuery(broadcastsQueryOptions.list());
+	const tags = useQuery(tagsQueryOptions.list());
 
 	const createMutation = useMutation({
 		mutationFn: (data: BroadcastCreateData) =>
@@ -340,21 +335,6 @@ function BroadcastsPage() {
 			)}
 		</div>
 	);
-}
-
-interface Broadcast {
-	id: string;
-	title: string;
-	messageType: string;
-	messageContent: string;
-	targetType: string;
-	targetTagId: string | null;
-	status: string;
-	scheduledAt: string | null;
-	sentAt: string | null;
-	totalCount: number;
-	successCount: number;
-	createdAt: string;
 }
 
 interface BroadcastCreateData {

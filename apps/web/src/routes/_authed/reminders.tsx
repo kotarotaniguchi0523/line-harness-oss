@@ -2,31 +2,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { css } from "../../../styled-system/css";
+import { remindersQueryOptions } from "../../lib/query-config";
 import { fetchApi } from "../../lib/rpc";
-
-interface Reminder {
-	id: string;
-	name: string;
-	description: string | null;
-	isActive: boolean;
-	createdAt: string;
-}
-
-interface ReminderDetail {
-	id: string;
-	name: string;
-	description: string | null;
-	isActive: boolean;
-	steps: ReminderStep[];
-	createdAt: string;
-}
-
-interface ReminderStep {
-	id: string;
-	offsetMinutes: number;
-	messageType: string;
-	messageContent: string;
-}
 
 interface ReminderCreateData {
 	name: string;
@@ -41,13 +18,9 @@ function RemindersPage() {
 	const [form, setForm] = useState({ name: "", description: "" });
 	const [expandedId, setExpandedId] = useState<string | null>(null);
 
-	const reminders = useQuery({
-		queryKey: ["reminders"],
-		queryFn: () => fetchApi<{ success: true; data: Reminder[] }>("/api/reminders"),
-	});
+	const reminders = useQuery(remindersQueryOptions.list());
 	const reminderDetail = useQuery({
-		queryKey: ["reminders", expandedId],
-		queryFn: () => fetchApi<{ success: true; data: ReminderDetail }>(`/api/reminders/${expandedId}`),
+		...remindersQueryOptions.detail(expandedId ?? ""),
 		enabled: !!expandedId,
 	});
 	const createMutation = useMutation({

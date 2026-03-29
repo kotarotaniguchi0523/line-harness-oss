@@ -1,16 +1,15 @@
 import { createFileRoute, Link, Outlet, redirect } from "@tanstack/react-router";
 import { Suspense } from "react";
-import { authClient } from "@/lib/auth-client";
+import { getUser } from "@/functions/get-user";
 import { css } from "../../styled-system/css";
 
 export const Route = createFileRoute("/_authed")({
 	beforeLoad: async () => {
-		// Server-side session check via better-auth httpOnly cookie
-		const session = await authClient.getSession();
-		if (!session.data) {
+		const session = await getUser();
+		if (!session?.user) {
 			throw redirect({ to: "/login" });
 		}
-		return { session: session.data };
+		return { session };
 	},
 	component: AuthedLayout,
 });

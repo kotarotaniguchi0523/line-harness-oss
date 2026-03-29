@@ -1,30 +1,13 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { css } from "../../../styled-system/css";
-import { fetchApi } from "../../lib/rpc";
-
-interface RefStats {
-	totalFriends: number;
-	friendsWithRef: number;
-	friendsWithoutRef: number;
-	routes: RefRoute[];
-}
-
-interface RefRoute {
-	refCode: string;
-	routeName: string | null;
-	friendCount: number;
-	clickCount: number;
-}
+import { affiliatesQueryOptions } from "../../lib/query-config";
 
 export const Route = createFileRoute("/_authed/affiliates")({ component: AffiliatesPage });
 
 function AffiliatesPage() {
 	const _queryClient = useQueryClient();
-	const refStats = useQuery({
-		queryKey: ["ref-stats"],
-		queryFn: () => fetchApi<{ success: true; data: RefStats }>("/api/friends/ref-stats"),
-	});
+	const refStats = useQuery(affiliatesQueryOptions.refStats());
 
 	const stats = refStats.data?.data;
 	const thStyle = css({

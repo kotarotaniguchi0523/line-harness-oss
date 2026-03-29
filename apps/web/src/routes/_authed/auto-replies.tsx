@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { css } from "../../../styled-system/css";
+import { autoRepliesQueryOptions } from "../../lib/query-config";
 import { fetchApi } from "../../lib/rpc";
 
 export const Route = createFileRoute("/_authed/auto-replies")({ component: AutoRepliesPage });
@@ -194,10 +195,7 @@ function AutoRepliesPage() {
 	// ---------------------------------------------------------------------------
 	// Queries & Mutations
 	// ---------------------------------------------------------------------------
-	const autoReplies = useQuery({
-		queryKey: ["auto-replies"],
-		queryFn: () => fetchApi<{ success: true; data: AutoReply[] }>("/api/auto-replies"),
-	});
+	const autoReplies = useQuery(autoRepliesQueryOptions.list());
 
 	const createMutation = useMutation({
 		mutationFn: (data: { keyword: string; matchType: string; priority: number; messages: MessageInput[] }) =>

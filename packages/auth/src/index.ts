@@ -17,13 +17,12 @@ export function createAuth() {
 		emailAndPassword: {
 			enabled: true,
 		},
-		// uncomment cookieCache setting when ready to deploy to Cloudflare using *.workers.dev domains
-		// session: {
-		//   cookieCache: {
-		//     enabled: true,
-		//     maxAge: 60,
-		//   },
-		// },
+		session: {
+			cookieCache: {
+				enabled: true,
+				maxAge: 60,
+			},
+		},
 		secret: env.BETTER_AUTH_SECRET,
 		baseURL: env.BETTER_AUTH_URL,
 		advanced: {

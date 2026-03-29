@@ -2,17 +2,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { css } from "../../../styled-system/css";
+import { staffQueryOptions } from "../../lib/query-config";
 import { fetchApi } from "../../lib/rpc";
-
-interface Staff {
-	id: string;
-	name: string;
-	email: string | null;
-	role: string;
-	apiKey: string;
-	isActive: boolean;
-	createdAt: string;
-}
 
 interface StaffCreateData {
 	name: string;
@@ -34,10 +25,7 @@ function StaffPage() {
 	const [form, setForm] = useState({ name: "", email: "", role: "staff" as "admin" | "staff" });
 	const [newKey, setNewKey] = useState<string | null>(null);
 
-	const staff = useQuery({
-		queryKey: ["staff"],
-		queryFn: () => fetchApi<{ success: true; data: Staff[] }>("/api/staff"),
-	});
+	const staff = useQuery(staffQueryOptions.list());
 	const createMutation = useMutation({
 		mutationFn: (data: StaffCreateData) =>
 			fetchApi<{ success: true; data: { apiKey: string } }>("/api/staff", {

@@ -2,21 +2,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { css } from "../../../styled-system/css";
+import { conversionsQueryOptions } from "../../lib/query-config";
 import { fetchApi } from "../../lib/rpc";
-
-interface ConversionPoint {
-	id: string;
-	name: string;
-	eventType: string;
-	value: number | null;
-	createdAt: string;
-}
-
-interface ConversionReport {
-	name: string;
-	count: number;
-	totalValue: number;
-}
 
 interface ConversionPointCreateData {
 	name: string;
@@ -43,14 +30,8 @@ function ConversionsPage() {
 	const [showCreate, setShowCreate] = useState(false);
 	const [form, setForm] = useState({ name: "", eventType: "friend_add", value: "" });
 
-	const points = useQuery({
-		queryKey: ["conversion-points"],
-		queryFn: () => fetchApi<{ success: true; data: ConversionPoint[] }>("/api/conversions/points"),
-	});
-	const report = useQuery({
-		queryKey: ["conversion-report"],
-		queryFn: () => fetchApi<{ success: true; data: ConversionReport[] }>("/api/conversions/report"),
-	});
+	const points = useQuery(conversionsQueryOptions.points());
+	const report = useQuery(conversionsQueryOptions.report());
 	const createMutation = useMutation({
 		mutationFn: (data: ConversionPointCreateData) =>
 			fetchApi("/api/conversions/points", { method: "POST", body: JSON.stringify(data) }),

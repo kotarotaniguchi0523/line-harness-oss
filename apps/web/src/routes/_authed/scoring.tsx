@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { css } from "../../../styled-system/css";
+import { scoringRulesQueryOptions } from "../../lib/query-config";
 import { fetchApi } from "../../lib/rpc";
 
 export const Route = createFileRoute("/_authed/scoring")({ component: ScoringPage });
@@ -11,10 +12,7 @@ function ScoringPage() {
 	const [showCreate, setShowCreate] = useState(false);
 	const [form, setForm] = useState({ name: "", eventType: "", scoreValue: "5" });
 
-	const rules = useQuery({
-		queryKey: ["scoring-rules"],
-		queryFn: () => fetchApi<{ success: true; data: ScoringRule[] }>("/api/scoring-rules"),
-	});
+	const rules = useQuery(scoringRulesQueryOptions.list());
 	const createMutation = useMutation({
 		mutationFn: (data: ScoringRuleCreateData) =>
 			fetchApi("/api/scoring-rules", { method: "POST", body: JSON.stringify(data) }),
@@ -243,15 +241,6 @@ function ScoringPage() {
 			</div>
 		</div>
 	);
-}
-
-interface ScoringRule {
-	id: string;
-	name: string;
-	eventType: string;
-	scoreValue: number;
-	isActive: boolean;
-	createdAt: string;
 }
 
 interface ScoringRuleCreateData {

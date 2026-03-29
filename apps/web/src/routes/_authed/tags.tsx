@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { css } from "../../../styled-system/css";
+import { tagsQueryOptions } from "../../lib/query-config";
 import { fetchApi } from "../../lib/rpc";
 
 export const Route = createFileRoute("/_authed/tags")({
@@ -14,10 +15,7 @@ function TagsPage() {
 	const [name, setName] = useState("");
 	const [color, setColor] = useState("#3B82F6");
 
-	const tags = useQuery({
-		queryKey: ["tags"],
-		queryFn: () => fetchApi<{ success: true; data: Tag[] }>("/api/tags"),
-	});
+	const tags = useQuery(tagsQueryOptions.list());
 
 	const createMutation = useMutation({
 		mutationFn: (data: { name: string; color: string }) =>
@@ -216,11 +214,4 @@ function TagsPage() {
 			)}
 		</div>
 	);
-}
-
-interface Tag {
-	id: string;
-	name: string;
-	color: string;
-	createdAt: string;
 }

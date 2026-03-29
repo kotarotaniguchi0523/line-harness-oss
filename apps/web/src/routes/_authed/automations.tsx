@@ -2,19 +2,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { css } from "../../../styled-system/css";
+import { automationsQueryOptions } from "../../lib/query-config";
 import { fetchApi } from "../../lib/rpc";
-
-interface Automation {
-	id: string;
-	name: string;
-	description: string | null;
-	eventType: string;
-	actions: unknown[];
-	conditions: Record<string, unknown>;
-	priority: number;
-	isActive: boolean;
-	createdAt: string;
-}
 
 interface AutomationCreateData {
 	name: string;
@@ -48,10 +37,7 @@ function AutomationsPage() {
 		priority: 0,
 	});
 
-	const automations = useQuery({
-		queryKey: ["automations"],
-		queryFn: () => fetchApi<{ success: true; data: Automation[] }>("/api/automations"),
-	});
+	const automations = useQuery(automationsQueryOptions.list());
 	const createMutation = useMutation({
 		mutationFn: (data: AutomationCreateData) =>
 			fetchApi("/api/automations", { method: "POST", body: JSON.stringify(data) }),

@@ -1,16 +1,11 @@
 import { Toaster } from "@line-crm/ui/components/sonner";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { QueryClient } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { createRootRouteWithContext, HeadContent, Outlet, Scripts } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 import { css } from "../../styled-system/css";
 import Header from "../components/header";
 import appCss from "../index.css?url";
-import { DEFAULT_QUERY_OPTIONS } from "../lib/query-config";
-
-// Shared QueryClient with domain-aware cache defaults (from query-config.ts)
-export const queryClient = new QueryClient({
-	defaultOptions: DEFAULT_QUERY_OPTIONS,
-});
 
 export interface RouterAppContext {
 	queryClient: QueryClient;
@@ -30,6 +25,7 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
 });
 
 function RootDocument() {
+	const { queryClient } = Route.useRouteContext();
 	return (
 		<html lang="ja">
 			<head>

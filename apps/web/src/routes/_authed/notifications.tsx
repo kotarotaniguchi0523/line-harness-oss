@@ -2,25 +2,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { css } from "../../../styled-system/css";
+import { notificationsQueryOptions } from "../../lib/query-config";
 import { fetchApi } from "../../lib/rpc";
-
-interface NotificationRule {
-	id: string;
-	name: string;
-	eventType: string;
-	channels: string[];
-	isActive: boolean;
-	createdAt: string;
-}
-
-interface Notification {
-	id: string;
-	title: string;
-	eventType: string;
-	channel: string;
-	status: string;
-	createdAt: string;
-}
 
 interface NotificationRuleCreateData {
 	name: string;
@@ -42,17 +25,8 @@ function NotificationsPage() {
 	const [form, setForm] = useState({ name: "", eventType: "", channels: "webhook", conditions: "{}" });
 	const [statusFilter, setStatusFilter] = useState("");
 
-	const rules = useQuery({
-		queryKey: ["notification-rules"],
-		queryFn: () => fetchApi<{ success: true; data: NotificationRule[] }>("/api/notifications/rules"),
-	});
-	const notifications = useQuery({
-		queryKey: ["notifications", { status: statusFilter }],
-		queryFn: () =>
-			fetchApi<{ success: true; data: Notification[] }>(
-				`/api/notifications${statusFilter ? `?status=${statusFilter}` : ""}`,
-			),
-	});
+	const rules = useQuery(notificationsQueryOptions.rules());
+	const notifications = useQuery(notificationsQueryOptions.list(statusFilter ? { status: statusFilter } : undefined));
 	const createMutation = useMutation({
 		mutationFn: (data: NotificationRuleCreateData) =>
 			fetchApi("/api/notifications/rules", { method: "POST", body: JSON.stringify(data) }),

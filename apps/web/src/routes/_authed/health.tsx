@@ -1,25 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { css } from "../../../styled-system/css";
-import { fetchApi } from "../../lib/rpc";
-
-interface HealthAccount {
-	id: string;
-	name: string;
-	channelId: string;
-	riskLevel: string;
-	isActive: boolean;
-	createdAt: string;
-}
-
-interface Migration {
-	id: string;
-	fromAccountId: string;
-	toAccountId: string;
-	status: string;
-	migratedCount: number;
-	totalCount: number;
-}
+import { healthQueryOptions } from "../../lib/query-config";
 
 export const Route = createFileRoute("/_authed/health")({ component: HealthPage });
 
@@ -30,14 +12,8 @@ const riskStyles: Record<string, { bg: string; color: string; animation?: string
 };
 
 function HealthPage() {
-	const accounts = useQuery({
-		queryKey: ["line-accounts"],
-		queryFn: () => fetchApi<{ success: true; data: HealthAccount[] }>("/api/line-accounts"),
-	});
-	const migrations = useQuery({
-		queryKey: ["migrations"],
-		queryFn: () => fetchApi<{ success: true; data: Migration[] }>("/api/accounts/migrations"),
-	});
+	const accounts = useQuery(healthQueryOptions.lineAccounts());
+	const migrations = useQuery(healthQueryOptions.migrations());
 
 	const thStyle = css({
 		px: "4",

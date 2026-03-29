@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { css } from "../../../styled-system/css";
+import { templatesQueryOptions } from "../../lib/query-config";
 import { fetchApi } from "../../lib/rpc";
 
 export const Route = createFileRoute("/_authed/templates")({
@@ -14,10 +15,7 @@ function TemplatesPage() {
 	const [selectedCategory, setSelectedCategory] = useState("all");
 	const [form, setForm] = useState({ name: "", category: "general", messageType: "text", messageContent: "" });
 
-	const templates = useQuery({
-		queryKey: ["templates"],
-		queryFn: () => fetchApi<{ success: true; data: Template[] }>("/api/templates"),
-	});
+	const templates = useQuery(templatesQueryOptions.list());
 
 	const createMutation = useMutation({
 		mutationFn: (data: typeof form) => fetchApi("/api/templates", { method: "POST", body: JSON.stringify(data) }),
@@ -296,14 +294,4 @@ function TemplatesPage() {
 			)}
 		</div>
 	);
-}
-
-interface Template {
-	id: string;
-	name: string;
-	category: string;
-	messageType: string;
-	messageContent: string;
-	createdAt: string;
-	updatedAt: string;
 }

@@ -3,8 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Suspense, useTransition } from "react";
 import { z } from "zod";
 import { css } from "../../../styled-system/css";
-import { queryOptionsConfig } from "../../lib/query-config";
-import { fetchApi } from "../../lib/rpc";
+import { friendsQueryOptions, tagsQueryOptions } from "../../lib/query-config";
 
 // ---------------------------------------------------------------------------
 // Route definition with URL-based state (no useState for server-derived state)
@@ -16,27 +15,27 @@ const friendsSearchSchema = z.object({
 
 export const Route = createFileRoute("/_authed/friends")({
 	validateSearch: friendsSearchSchema,
+	loaderDeps: ({ search: { page, tagId } }) => ({ page, tagId }),
 	// Prefetch friend list + tags in route loader for instant rendering
-	loader: async ({ context: { queryClient }, search: { page, tagId } }) => {
-		const PAGE_SIZE = 20;
-		const params = new URLSearchParams({
-			limit: String(PAGE_SIZE),
-			offset: String((page - 1) * PAGE_SIZE),
-		});
-		if (tagId) params.set("tagId", tagId);
-
+	loader: async ({ context: { queryClient }, deps: { page, tagId } }) => {
 		await Promise.all([
-			queryClient.ensureQueryData({
-				...queryOptionsConfig.friends.list({ page, tagId }),
-				queryFn: () => fetchApi<{ success: true; data: FriendListResponse }>(`/api/friends?${params}`),
-			}),
-			queryClient.ensureQueryData({
-				...queryOptionsConfig.tags.list(),
-				queryFn: () => fetchApi<{ success: true; data: TagItem[] }>("/api/tags"),
-			}),
+			queryClient.ensureQueryData(friendsQueryOptions.list({ page, tagId })),
+			queryClient.ensureQueryData(tagsQueryOptions.list()),
 		]);
 	},
 	component: FriendsPage,
+	pendingComponent: () => (
+		<div className={css({ animation: "pulse", display: "flex", flexDirection: "column", gap: "4" })}>
+			<div className={css({ h: "8", w: "48", borderRadius: "md", bg: "gray.200" })} />
+			<div className={css({ h: "64", borderRadius: "md", bg: "gray.100" })} />
+		</div>
+	),
+	errorComponent: ({ error }) => (
+		<div className={css({ p: "6", borderRadius: "lg", borderWidth: "1px", borderColor: "red.200", bg: "red.50" })}>
+			<h2 className={css({ fontSize: "lg", fontWeight: "bold", color: "red.800" })}>読み込みエラー</h2>
+			<p className={css({ mt: "2", fontSize: "sm", color: "red.700" })}>{error.message}</p>
+		</div>
+	),
 });
 
 const PAGE_SIZE = 20;
@@ -68,10 +67,7 @@ function FriendsPage() {
 function TagFilter({ currentTagId }: { currentTagId: string }) {
 	const navigate = Route.useNavigate();
 	const [isPending, startTransition] = useTransition();
-	const { data } = useSuspenseQuery({
-		...queryOptionsConfig.tags.list(),
-		queryFn: () => fetchApi<{ success: true; data: TagItem[] }>("/api/tags"),
-	});
+	const { data } = useSuspenseQuery(tagsQueryOptions.list());
 
 	return (
 		<div className={css({ mb: "4", display: "flex", alignItems: "center", gap: "2" })}>
@@ -114,17 +110,7 @@ function FriendTable({ page, tagId }: { page: number; tagId: string }) {
 	const navigate = Route.useNavigate();
 	const [isPending, startTransition] = useTransition();
 
-	const { data } = useSuspenseQuery({
-		...queryOptionsConfig.friends.list({ page, tagId }),
-		queryFn: () => {
-			const params = new URLSearchParams({
-				limit: String(PAGE_SIZE),
-				offset: String((page - 1) * PAGE_SIZE),
-			});
-			if (tagId) params.set("tagId", tagId);
-			return fetchApi<{ success: true; data: FriendListResponse }>(`/api/friends?${params}`);
-		},
-	});
+	const { data } = useSuspenseQuery(friendsQueryOptions.list({ page, tagId }));
 
 	const { items, total, hasNextPage } = data.data;
 
@@ -490,10 +476,3 @@ interface FriendState {
  * Identity (不変) と State (変動) を結合した完全な型。
  */
 interface FriendItem extends FriendIdentity, FriendState {}
-
-interface FriendListResponse {
-	items: FriendItem[];
-	total: number;
-	page: number;
-	hasNextPage: boolean;
-}

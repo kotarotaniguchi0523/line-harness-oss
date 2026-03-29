@@ -2,28 +2,30 @@ import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Suspense } from "react";
 import { css } from "../../../styled-system/css";
-import { queryOptionsConfig } from "../../lib/query-config";
-import { fetchApi } from "../../lib/rpc";
+import { broadcastsQueryOptions, friendsQueryOptions, scenariosQueryOptions } from "../../lib/query-config";
 
 export const Route = createFileRoute("/_authed/")({
 	// Prefetch all dashboard stats in route loader for instant rendering
 	loader: async ({ context: { queryClient } }) => {
 		await Promise.all([
-			queryClient.ensureQueryData({
-				...queryOptionsConfig.friends.count(),
-				queryFn: () => fetchApi<{ success: true; data: { count: number } }>("/api/friends/count"),
-			}),
-			queryClient.ensureQueryData({
-				...queryOptionsConfig.scenarios.list(),
-				queryFn: () => fetchApi<{ success: true; data: Array<{ isActive: boolean }> }>("/api/scenarios"),
-			}),
-			queryClient.ensureQueryData({
-				...queryOptionsConfig.broadcasts.list(),
-				queryFn: () => fetchApi<{ success: true; data: unknown[] }>("/api/broadcasts"),
-			}),
+			queryClient.ensureQueryData(friendsQueryOptions.count()),
+			queryClient.ensureQueryData(scenariosQueryOptions.list()),
+			queryClient.ensureQueryData(broadcastsQueryOptions.list()),
 		]);
 	},
 	component: DashboardPage,
+	pendingComponent: () => (
+		<div className={css({ animation: "pulse", display: "flex", flexDirection: "column", gap: "4" })}>
+			<div className={css({ h: "8", w: "48", borderRadius: "md", bg: "gray.200" })} />
+			<div className={css({ h: "64", borderRadius: "md", bg: "gray.100" })} />
+		</div>
+	),
+	errorComponent: ({ error }) => (
+		<div className={css({ p: "6", borderRadius: "lg", borderWidth: "1px", borderColor: "red.200", bg: "red.50" })}>
+			<h2 className={css({ fontSize: "lg", fontWeight: "bold", color: "red.800" })}>読み込みエラー</h2>
+			<p className={css({ mt: "2", fontSize: "sm", color: "red.700" })}>{error.message}</p>
+		</div>
+	),
 });
 
 // ---------------------------------------------------------------------------
@@ -56,27 +58,18 @@ function DashboardPage() {
 // Container Components (data fetching via useSuspenseQuery)
 // ---------------------------------------------------------------------------
 function FriendCountCard() {
-	const { data } = useSuspenseQuery({
-		...queryOptionsConfig.friends.count(),
-		queryFn: () => fetchApi<{ success: true; data: { count: number } }>("/api/friends/count"),
-	});
+	const { data } = useSuspenseQuery(friendsQueryOptions.count());
 	return <StatCard title="友だち数" value={data.data.count} accent="#06C755" href="/friends" />;
 }
 
 function ActiveScenarioCard() {
-	const { data } = useSuspenseQuery({
-		...queryOptionsConfig.scenarios.list(),
-		queryFn: () => fetchApi<{ success: true; data: Array<{ isActive: boolean }> }>("/api/scenarios"),
-	});
+	const { data } = useSuspenseQuery(scenariosQueryOptions.list());
 	const activeCount = data.data.filter((s) => s.isActive).length;
 	return <StatCard title="アクティブシナリオ" value={activeCount} accent="#3B82F6" href="/scenarios" />;
 }
 
 function BroadcastCountCard() {
-	const { data } = useSuspenseQuery({
-		...queryOptionsConfig.broadcasts.list(),
-		queryFn: () => fetchApi<{ success: true; data: unknown[] }>("/api/broadcasts"),
-	});
+	const { data } = useSuspenseQuery(broadcastsQueryOptions.list());
 	return <StatCard title="配信数" value={data.data.length} accent="#8B5CF6" href="/broadcasts" />;
 }
 

@@ -2,10 +2,23 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { css } from "../../../styled-system/css";
+import { scenariosQueryOptions } from "../../lib/query-config";
 import { fetchApi } from "../../lib/rpc";
 
 export const Route = createFileRoute("/_authed/scenarios")({
 	component: ScenariosPage,
+	pendingComponent: () => (
+		<div className={css({ animation: "pulse", display: "flex", flexDirection: "column", gap: "4" })}>
+			<div className={css({ h: "8", w: "48", borderRadius: "md", bg: "gray.200" })} />
+			<div className={css({ h: "64", borderRadius: "md", bg: "gray.100" })} />
+		</div>
+	),
+	errorComponent: ({ error }) => (
+		<div className={css({ p: "6", borderRadius: "lg", borderWidth: "1px", borderColor: "red.200", bg: "red.50" })}>
+			<h2 className={css({ fontSize: "lg", fontWeight: "bold", color: "red.800" })}>読み込みエラー</h2>
+			<p className={css({ mt: "2", fontSize: "sm", color: "red.700" })}>{error.message}</p>
+		</div>
+	),
 });
 
 function ScenariosPage() {
@@ -14,10 +27,7 @@ function ScenariosPage() {
 	const [form, setForm] = useState({ name: "", description: "", triggerType: "friend_add", isActive: true });
 	const [formError, setFormError] = useState("");
 
-	const scenarios = useQuery({
-		queryKey: ["scenarios"],
-		queryFn: () => fetchApi<{ success: true; data: Scenario[] }>("/api/scenarios"),
-	});
+	const scenarios = useQuery(scenariosQueryOptions.list());
 
 	const createMutation = useMutation({
 		mutationFn: (data: typeof form) => fetchApi("/api/scenarios", { method: "POST", body: JSON.stringify(data) }),
@@ -265,14 +275,4 @@ function ScenariosPage() {
 			)}
 		</div>
 	);
-}
-
-interface Scenario {
-	id: string;
-	name: string;
-	description: string | null;
-	triggerType: string;
-	isActive: boolean;
-	stepCount?: number;
-	createdAt: string;
 }

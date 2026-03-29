@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { css } from "../../../styled-system/css";
+import { webhooksQueryOptions } from "../../lib/query-config";
 import { fetchApi } from "../../lib/rpc";
 
 interface WebhookBase {
@@ -42,14 +43,8 @@ function WebhooksPage() {
 	const [inForm, setInForm] = useState({ name: "", sourceType: "custom" });
 	const [outForm, setOutForm] = useState({ name: "", url: "", eventTypes: "", secret: "" });
 
-	const incoming = useQuery({
-		queryKey: ["webhooks", "incoming"],
-		queryFn: () => fetchApi<{ success: true; data: IncomingWebhook[] }>("/api/webhooks/incoming"),
-	});
-	const outgoing = useQuery({
-		queryKey: ["webhooks", "outgoing"],
-		queryFn: () => fetchApi<{ success: true; data: OutgoingWebhook[] }>("/api/webhooks/outgoing"),
-	});
+	const incoming = useQuery(webhooksQueryOptions.incoming());
+	const outgoing = useQuery(webhooksQueryOptions.outgoing());
 
 	const createInMutation = useMutation({
 		mutationFn: (data: IncomingWebhookCreateData) =>
