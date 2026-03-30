@@ -62,6 +62,9 @@ export type Env = {
 		GOOGLE_CLIENT_ID?: string; // Google OAuth client ID for Calendar token refresh
 		GOOGLE_CLIENT_SECRET?: string; // Google OAuth client secret for Calendar token refresh
 		WORKER_LOADER?: WorkerLoader; // Optional: Workers for Platforms binding for CodeMode sandbox
+		BETTER_AUTH_SECRET?: string; // better-auth session signing secret
+		BETTER_AUTH_URL?: string; // better-auth public URL
+		CORS_ORIGIN?: string; // CORS allowed origin
 	};
 	Variables: {
 		staff: { id: string; name: string; role: "owner" | "admin" | "staff" };
@@ -115,6 +118,25 @@ app.route("/", staff);
 app.route("/", autoRepliesRoute);
 app.route("/", media);
 app.route("/", mcpRoute);
+
+// better-auth handler — serves /api/auth/** endpoints (sign-in, sign-up, session, etc.)
+app.on(["GET", "POST"], "/api/auth/**", async (c) => {
+	const { betterAuth } = await import("better-auth");
+	const { drizzleAdapter } = await import("better-auth/adapters/drizzle");
+	const db = c.get("db");
+	const auth = betterAuth({
+		database: drizzleAdapter(db, { provider: "sqlite" }),
+		trustedOrigins: c.env.CORS_ORIGIN ? [c.env.CORS_ORIGIN] : [],
+		emailAndPassword: { enabled: true },
+		secret: c.env.BETTER_AUTH_SECRET ?? c.env.API_KEY,
+		baseURL: c.env.BETTER_AUTH_URL ?? c.env.WORKER_URL,
+		session: { cookieCache: { enabled: true, maxAge: 60 } },
+		advanced: {
+			defaultCookieAttributes: { sameSite: "none", secure: true, httpOnly: true },
+		},
+	});
+	return auth.handler(c.req.raw);
+});
 
 // Cap'n Web RPC endpoint (authenticated via object-capability)
 app.all("/rpc", (c) => {
