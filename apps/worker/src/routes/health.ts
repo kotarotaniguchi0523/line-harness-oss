@@ -1,11 +1,4 @@
-import {
-	createAccountMigration,
-	getAccountHealthLogs,
-	getAccountMigrationById,
-	getAccountMigrations,
-	getLatestRiskLevel,
-	updateAccountMigration,
-} from "@line-crm/db";
+import { createHealthRepository } from "@line-crm/db";
 import { Hono } from "hono";
 import type { Env } from "../index.js";
 
@@ -16,23 +9,18 @@ const health = new Hono<Env>();
 health.get("/api/accounts/:id/health", async (c) => {
 	try {
 		const lineAccountId = c.req.param("id");
+		const db = c.get("db");
+		const healthRepo = createHealthRepository(db);
 		const [riskLevel, logs] = await Promise.all([
-			getLatestRiskLevel(c.env.DB, lineAccountId),
-			getAccountHealthLogs(c.env.DB, lineAccountId),
+			healthRepo.getLatestRiskLevel(lineAccountId),
+			healthRepo.getLogs(lineAccountId),
 		]);
 		return c.json({
 			success: true,
 			data: {
 				lineAccountId,
 				riskLevel,
-				logs: logs.map((l) => ({
-					id: l.id,
-					errorCode: l.error_code,
-					errorCount: l.error_count,
-					checkPeriod: l.check_period,
-					riskLevel: l.risk_level,
-					createdAt: l.created_at,
-				})),
+				logs,
 			},
 		});
 	} catch (err) {
@@ -45,20 +33,10 @@ health.get("/api/accounts/:id/health", async (c) => {
 
 health.get("/api/accounts/migrations", async (c) => {
 	try {
-		const items = await getAccountMigrations(c.env.DB);
-		return c.json({
-			success: true,
-			data: items.map((m) => ({
-				id: m.id,
-				fromAccountId: m.from_account_id,
-				toAccountId: m.to_account_id,
-				status: m.status,
-				migratedCount: m.migrated_count,
-				totalCount: m.total_count,
-				createdAt: m.created_at,
-				completedAt: m.completed_at,
-			})),
-		});
+		const db = c.get("db");
+		const healthRepo = createHealthRepository(db);
+		const items = await healthRepo.listMigrations();
+		return c.json({ success: true, data: items });
 	} catch (err) {
 		console.error("GET /api/accounts/migrations error:", err);
 		return c.json({ success: false, error: "Internal server error" }, 500);
@@ -71,41 +49,26 @@ health.post("/api/accounts/:id/migrate", async (c) => {
 		const body = await c.req.json<{ toAccountId: string }>();
 		if (!body.toAccountId) return c.json({ success: false, error: "toAccountId is required" }, 400);
 
-		const db = c.env.DB;
-
-		// 移行対象: このアカウントに紐づく友だち数をカウント（line_accountsとの関連はuser_id経由）
-		// 簡易版: is_following=1 の全友だちを移行対象とする
+		// 移行対象: このアカウントに紐づく友だち数をカウント（簡易版）
 		// TODO: Migrate to createFriendRepository once count() supports isFollowing filter
-		const countResult = await db
-			.prepare("SELECT COUNT(*) as count FROM friends WHERE is_following = 1")
-			.first<{ count: number }>();
+		const countResult = await c.env.DB.prepare("SELECT COUNT(*) as count FROM friends WHERE is_following = 1").first<{
+			count: number;
+		}>();
 		const totalCount = countResult?.count ?? 0;
 
-		const migration = await createAccountMigration(db, {
+		const db = c.get("db");
+		const healthRepo = createHealthRepository(db);
+		const id = await healthRepo.createMigration({
 			fromAccountId,
 			toAccountId: body.toAccountId,
 			totalCount,
 		});
 
-		// 移行処理は非同期で実行（実際の移行はUUIDベースなのでユーザーが新アカウントを友だち追加した時に自動マッチされる）
-		await updateAccountMigration(db, migration.id, {
-			status: "in_progress",
-		});
+		// 移行処理は非同期で実行
+		await healthRepo.updateMigration(id, { status: "in_progress" });
 
-		return c.json(
-			{
-				success: true,
-				data: {
-					id: migration.id,
-					fromAccountId: migration.from_account_id,
-					toAccountId: migration.to_account_id,
-					status: "in_progress",
-					totalCount: migration.total_count,
-					createdAt: migration.created_at,
-				},
-			},
-			201,
-		);
+		const migration = await healthRepo.findMigrationById(id);
+		return c.json({ success: true, data: migration }, 201);
 	} catch (err) {
 		console.error("POST /api/accounts/:id/migrate error:", err);
 		return c.json({ success: false, error: "Internal server error" }, 500);
@@ -114,21 +77,11 @@ health.post("/api/accounts/:id/migrate", async (c) => {
 
 health.get("/api/accounts/migrations/:migrationId", async (c) => {
 	try {
-		const item = await getAccountMigrationById(c.env.DB, c.req.param("migrationId"));
+		const db = c.get("db");
+		const healthRepo = createHealthRepository(db);
+		const item = await healthRepo.findMigrationById(c.req.param("migrationId"));
 		if (!item) return c.json({ success: false, error: "Migration not found" }, 404);
-		return c.json({
-			success: true,
-			data: {
-				id: item.id,
-				fromAccountId: item.from_account_id,
-				toAccountId: item.to_account_id,
-				status: item.status,
-				migratedCount: item.migrated_count,
-				totalCount: item.total_count,
-				createdAt: item.created_at,
-				completedAt: item.completed_at,
-			},
-		});
+		return c.json({ success: true, data: item });
 	} catch (err) {
 		console.error("GET /api/accounts/migrations/:migrationId error:", err);
 		return c.json({ success: false, error: "Internal server error" }, 500);

@@ -1,37 +1,16 @@
-import type { User as DbUser } from "@line-crm/db";
-import {
-	createUser,
-	deleteUser,
-	getUserByEmail,
-	getUserById,
-	getUserByPhone,
-	getUserFriends,
-	getUsers,
-	linkFriendToUser,
-	updateUser,
-} from "@line-crm/db";
+import { createUserRepository } from "@line-crm/db";
 import { Hono } from "hono";
 import type { Env } from "../index.js";
 
 const users = new Hono<Env>();
 
-function serializeUser(row: DbUser) {
-	return {
-		id: row.id,
-		email: row.email,
-		phone: row.phone,
-		externalId: row.external_id,
-		displayName: row.display_name,
-		createdAt: row.created_at,
-		updatedAt: row.updated_at,
-	};
-}
-
 // GET /api/users - list all
 users.get("/api/users", async (c) => {
 	try {
-		const items = await getUsers(c.env.DB);
-		return c.json({ success: true, data: items.map(serializeUser) });
+		const db = c.get("db");
+		const userRepo = createUserRepository(db);
+		const items = await userRepo.list();
+		return c.json({ success: true, data: items });
 	} catch (err) {
 		console.error("GET /api/users error:", err);
 		return c.json({ success: false, error: "Internal server error" }, 500);
@@ -41,12 +20,13 @@ users.get("/api/users", async (c) => {
 // GET /api/users/:id - get single
 users.get("/api/users/:id", async (c) => {
 	try {
-		const id = c.req.param("id");
-		const user = await getUserById(c.env.DB, id);
+		const db = c.get("db");
+		const userRepo = createUserRepository(db);
+		const user = await userRepo.findById(c.req.param("id"));
 		if (!user) {
 			return c.json({ success: false, error: "User not found" }, 404);
 		}
-		return c.json({ success: true, data: serializeUser(user) });
+		return c.json({ success: true, data: user });
 	} catch (err) {
 		console.error("GET /api/users/:id error:", err);
 		return c.json({ success: false, error: "Internal server error" }, 500);
@@ -63,8 +43,11 @@ users.post("/api/users", async (c) => {
 			displayName?: string | null;
 		}>();
 
-		const user = await createUser(c.env.DB, body);
-		return c.json({ success: true, data: serializeUser(user) }, 201);
+		const db = c.get("db");
+		const userRepo = createUserRepository(db);
+		const id = await userRepo.create(body);
+		const user = await userRepo.findById(id);
+		return c.json({ success: true, data: user }, 201);
 	} catch (err) {
 		console.error("POST /api/users error:", err);
 		return c.json({ success: false, error: "Internal server error" }, 500);
@@ -82,17 +65,20 @@ users.put("/api/users/:id", async (c) => {
 			displayName?: string | null;
 		}>();
 
-		const updated = await updateUser(c.env.DB, id, {
+		const db = c.get("db");
+		const userRepo = createUserRepository(db);
+		await userRepo.update(id, {
 			email: body.email,
 			phone: body.phone,
-			external_id: body.externalId,
-			display_name: body.displayName,
+			externalId: body.externalId,
+			displayName: body.displayName,
 		});
 
+		const updated = await userRepo.findById(id);
 		if (!updated) {
 			return c.json({ success: false, error: "User not found" }, 404);
 		}
-		return c.json({ success: true, data: serializeUser(updated) });
+		return c.json({ success: true, data: updated });
 	} catch (err) {
 		console.error("PUT /api/users/:id error:", err);
 		return c.json({ success: false, error: "Internal server error" }, 500);
@@ -102,7 +88,9 @@ users.put("/api/users/:id", async (c) => {
 // DELETE /api/users/:id - delete
 users.delete("/api/users/:id", async (c) => {
 	try {
-		await deleteUser(c.env.DB, c.req.param("id"));
+		const db = c.get("db");
+		const userRepo = createUserRepository(db);
+		await userRepo.delete(c.req.param("id"));
 		return c.json({ success: true, data: null });
 	} catch (err) {
 		console.error("DELETE /api/users/:id error:", err);
@@ -120,7 +108,9 @@ users.post("/api/users/:id/link", async (c) => {
 			return c.json({ success: false, error: "friendId is required" }, 400);
 		}
 
-		await linkFriendToUser(c.env.DB, body.friendId, userId);
+		const db = c.get("db");
+		const userRepo = createUserRepository(db);
+		await userRepo.linkFriend(body.friendId, userId);
 		return c.json({ success: true, data: null });
 	} catch (err) {
 		console.error("POST /api/users/:id/link error:", err);
@@ -132,16 +122,10 @@ users.post("/api/users/:id/link", async (c) => {
 users.get("/api/users/:id/accounts", async (c) => {
 	try {
 		const userId = c.req.param("id");
-		const friends = await getUserFriends(c.env.DB, userId);
-		return c.json({
-			success: true,
-			data: friends.map((f) => ({
-				id: f.id,
-				lineUserId: f.line_user_id,
-				displayName: f.display_name,
-				isFollowing: Boolean(f.is_following),
-			})),
-		});
+		const db = c.get("db");
+		const userRepo = createUserRepository(db);
+		const friends = await userRepo.getUserFriends(userId);
+		return c.json({ success: true, data: friends });
 	} catch (err) {
 		console.error("GET /api/users/:id/accounts error:", err);
 		return c.json({ success: false, error: "Internal server error" }, 500);
@@ -152,19 +136,23 @@ users.get("/api/users/:id/accounts", async (c) => {
 users.post("/api/users/match", async (c) => {
 	try {
 		const body = await c.req.json<{ email?: string; phone?: string }>();
+		const db = c.get("db");
+		const userRepo = createUserRepository(db);
 		let user = null;
 
 		if (body.email) {
-			user = await getUserByEmail(c.env.DB, body.email);
+			user = await userRepo.findByEmail(body.email);
 		}
 		if (!user && body.phone) {
-			user = await getUserByPhone(c.env.DB, body.phone);
+			// Phone lookup not directly available in repo; fall back to raw query
+			const result = await c.env.DB.prepare("SELECT * FROM users WHERE phone = ?").bind(body.phone).first();
+			user = result ?? null;
 		}
 
 		if (!user) {
 			return c.json({ success: false, error: "User not found" }, 404);
 		}
-		return c.json({ success: true, data: serializeUser(user) });
+		return c.json({ success: true, data: user });
 	} catch (err) {
 		console.error("POST /api/users/match error:", err);
 		return c.json({ success: false, error: "Internal server error" }, 500);

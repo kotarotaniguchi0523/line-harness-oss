@@ -9,12 +9,11 @@
 
 import type { AutomationActionType } from "@line-crm/contracts";
 import {
-	addTagToFriend,
 	createDb,
 	createFriendRepository,
+	createScenarioRepository,
+	createTagRepository,
 	DateTime,
-	enrollFriendInScenario,
-	removeTagFromFriend,
 } from "@line-crm/db";
 import { friends } from "@line-crm/db/schema";
 import type { FriendId } from "@line-crm/domain";
@@ -74,15 +73,25 @@ async function resolveLineUserId(db: D1Database, friendId: string): Promise<stri
 
 const handlers: { [K in keyof ActionParams]: ActionHandler<K> } = {
 	add_tag: async (deps, friendId, params) => {
-		await addTagToFriend(deps.db, friendId, params.tagId);
+		const drizzle = createDb(deps.db);
+		const tagRepo = createTagRepository(drizzle);
+		await tagRepo.assignToFriend(friendId as FriendId, params.tagId as import("@line-crm/domain").TagId);
 	},
 
 	remove_tag: async (deps, friendId, params) => {
-		await removeTagFromFriend(deps.db, friendId, params.tagId);
+		const drizzle = createDb(deps.db);
+		const tagRepo = createTagRepository(drizzle);
+		await tagRepo.removeFromFriend(friendId as FriendId, params.tagId as import("@line-crm/domain").TagId);
 	},
 
 	start_scenario: async (deps, friendId, params) => {
-		await enrollFriendInScenario(deps.db, friendId, params.scenarioId);
+		const drizzle = createDb(deps.db);
+		const scenarioRepo = createScenarioRepository(drizzle);
+		await scenarioRepo.enrollFriend(
+			friendId as FriendId,
+			params.scenarioId as import("@line-crm/domain").ScenarioId,
+			null,
+		);
 	},
 
 	send_message: async (deps, friendId, params) => {

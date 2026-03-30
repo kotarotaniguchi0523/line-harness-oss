@@ -29,6 +29,18 @@ export function createScoringRepository(db: Database) {
 	} as const;
 
 	return {
+		/** Find a scoring rule by ID */
+		async findRuleById(id: ScoringRuleId) {
+			const [row] = await db.select(ruleColumns).from(scoringRules).where(eq(scoringRules.id, id));
+			return row ?? null;
+		},
+
+		/** Get the cached score for a friend */
+		async getFriendScore(friendId: FriendId): Promise<number> {
+			const [row] = await db.select({ score: friends.score }).from(friends).where(eq(friends.id, friendId));
+			return row?.score ?? 0;
+		},
+
 		/** List all scoring rules, newest first */
 		async listRules() {
 			return db.select(ruleColumns).from(scoringRules).orderBy(desc(scoringRules.createdAt));

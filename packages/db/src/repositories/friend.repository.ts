@@ -203,6 +203,13 @@ export function createFriendRepository(db: Database) {
 				.where(eq(friends.id, friendId));
 		},
 
+		async setFollowed(friendId: FriendId): Promise<void> {
+			await db
+				.update(friends)
+				.set({ isFollowing: true, updatedAt: DateTime.now().toISO() })
+				.where(eq(friends.id, friendId));
+		},
+
 		async setUnfollowed(friendId: FriendId): Promise<void> {
 			await db
 				.update(friends)

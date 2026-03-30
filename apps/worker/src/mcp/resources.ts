@@ -8,8 +8,13 @@
 // Unlike the stdio-based packages/mcp-server that calls the HTTP API via SDK,
 // these resource implementations access D1 directly within the Worker.
 
-// Legacy D1 helper imports — same pattern used by existing route handlers
-import { getBroadcasts, getFriendCount, getScenarios, getTags } from "@line-crm/db";
+import {
+	createBroadcastRepository,
+	createDb,
+	createFriendRepository,
+	createScenarioRepository,
+	createTagRepository,
+} from "@line-crm/db";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { MCP_RESOURCES } from "./config.js";
 
@@ -37,14 +42,20 @@ export function registerHttpMcpResources(server: McpServer, db: D1Database): voi
 
 function registerAccountSummaryResource(server: McpServer, db: D1Database): void {
 	server.resource("Account Summary", MCP_RESOURCES.accountSummary, async (_uri) => {
+		const drizzle = createDb(db);
+		const friendRepo = createFriendRepository(drizzle);
+		const scenarioRepo = createScenarioRepository(drizzle);
+		const broadcastRepo = createBroadcastRepository(drizzle);
+		const tagRepo = createTagRepository(drizzle);
+
 		const [friendCount, scenarios, broadcasts, tagList] = await Promise.all([
-			getFriendCount(db),
-			getScenarios(db),
-			getBroadcasts(db),
-			getTags(db),
+			friendRepo.count(),
+			scenarioRepo.list(),
+			broadcastRepo.list(),
+			tagRepo.list(),
 		]);
 
-		const activeScenarios = scenarios.filter((s) => s.is_active === 1);
+		const activeScenarios = scenarios.filter((s) => s.isActive);
 
 		const summary = {
 			friends: friendCount,
@@ -72,16 +83,18 @@ function registerAccountSummaryResource(server: McpServer, db: D1Database): void
 
 function registerActiveScenariosResource(server: McpServer, db: D1Database): void {
 	server.resource("Active Scenarios", MCP_RESOURCES.activeScenarios, async (_uri) => {
-		const scenarios = await getScenarios(db);
+		const drizzle = createDb(db);
+		const scenarioRepo = createScenarioRepository(drizzle);
+		const scenarios = await scenarioRepo.list();
 		const active = scenarios
-			.filter((s) => s.is_active === 1)
+			.filter((s) => s.isActive)
 			.map((s) => ({
 				id: s.id,
 				name: s.name,
 				description: s.description,
-				triggerType: s.trigger_type,
-				stepCount: s.step_count,
-				createdAt: s.created_at,
+				triggerType: s.triggerType,
+				stepCount: s.steps.length,
+				createdAt: s.createdAt,
 			}));
 
 		return {
@@ -102,12 +115,14 @@ function registerActiveScenariosResource(server: McpServer, db: D1Database): voi
 
 function registerTagsListResource(server: McpServer, db: D1Database): void {
 	server.resource("Tags List", MCP_RESOURCES.tagsList, async (_uri) => {
-		const tagList = await getTags(db);
+		const drizzle = createDb(db);
+		const tagRepo = createTagRepository(drizzle);
+		const tagList = await tagRepo.list();
 		const result = tagList.map((t) => ({
 			id: t.id,
 			name: t.name,
 			color: t.color,
-			createdAt: t.created_at,
+			createdAt: t.createdAt,
 		}));
 
 		return {

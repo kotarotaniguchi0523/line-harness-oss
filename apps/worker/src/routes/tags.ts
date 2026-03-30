@@ -1,6 +1,6 @@
 import { CreateTagSchema, UuidSchema } from "@line-crm/contracts";
-import type { Tag as DbTag } from "@line-crm/db";
-import { createTag, deleteTag, getTags } from "@line-crm/db";
+import { createTagRepository } from "@line-crm/db";
+import type { TagId } from "@line-crm/domain";
 import { Hono } from "hono";
 import { z } from "zod";
 import type { Env } from "../index.js";
@@ -9,22 +9,15 @@ import { CACHE_PREFIX } from "../services/cache.service.js";
 
 const tags = new Hono<Env>();
 
-function serializeTag(row: DbTag) {
-	return {
-		id: row.id,
-		name: row.name,
-		color: row.color,
-		createdAt: row.created_at,
-	};
-}
-
 // GET /api/tags - list all tags (cached via KV)
 tags.get("/api/tags", async (c) => {
 	try {
+		const db = c.get("db");
+		const tagRepo = createTagRepository(db);
 		const cache = c.get("cache");
 		const cacheKey = cache.tags.key("default");
-		const items = await cache.getOrFetch(cacheKey, () => getTags(c.env.DB), { ttl: cache.tags.ttl });
-		return c.json({ success: true, data: items.map(serializeTag) });
+		const items = await cache.getOrFetch(cacheKey, () => tagRepo.list(), { ttl: cache.tags.ttl });
+		return c.json({ success: true, data: items });
 	} catch (err) {
 		console.error("GET /api/tags error:", err);
 		return c.json({ success: false, error: "Internal server error" }, 500);
@@ -35,7 +28,9 @@ tags.get("/api/tags", async (c) => {
 tags.post("/api/tags", validateJson(CreateTagSchema), async (c) => {
 	try {
 		const body = c.req.valid("json");
-		const tag = await createTag(c.env.DB, {
+		const db = c.get("db");
+		const tagRepo = createTagRepository(db);
+		const id = await tagRepo.create({
 			name: body.name,
 			color: body.color,
 		});
@@ -44,7 +39,8 @@ tags.post("/api/tags", validateJson(CreateTagSchema), async (c) => {
 		const cache = c.get("cache");
 		await cache.invalidatePrefix(CACHE_PREFIX.TAGS);
 
-		return c.json({ success: true, data: serializeTag(tag) }, 201);
+		const tag = await tagRepo.findById(id as TagId);
+		return c.json({ success: true, data: tag }, 201);
 	} catch (err) {
 		console.error("POST /api/tags error:", err);
 		return c.json({ success: false, error: "Internal server error" }, 500);
@@ -55,7 +51,9 @@ tags.post("/api/tags", validateJson(CreateTagSchema), async (c) => {
 tags.delete("/api/tags/:id", validateParam(z.object({ id: UuidSchema })), async (c) => {
 	try {
 		const { id } = c.req.valid("param");
-		await deleteTag(c.env.DB, id);
+		const db = c.get("db");
+		const tagRepo = createTagRepository(db);
+		await tagRepo.delete(id as TagId);
 
 		// Invalidate tags cache after deletion
 		const cache = c.get("cache");

@@ -1,16 +1,5 @@
-import {
-	cancelFriendReminder,
-	createReminder,
-	createReminderStep,
-	deleteReminder,
-	deleteReminderStep,
-	enrollFriendInReminder,
-	getFriendReminders,
-	getReminderById,
-	getReminderSteps,
-	getReminders,
-	updateReminder,
-} from "@line-crm/db";
+import { createReminderRepository } from "@line-crm/db";
+import type { FriendId, ReminderId } from "@line-crm/domain";
 import { Hono } from "hono";
 import type { Env } from "../index.js";
 
@@ -21,7 +10,9 @@ const reminders = new Hono<Env>();
 reminders.get("/api/reminders", async (c) => {
 	try {
 		const lineAccountId = c.req.query("lineAccountId");
-		let items: Awaited<ReturnType<typeof getReminders>>;
+		const db = c.get("db");
+		const reminderRepo = createReminderRepository(db);
+		let items: Awaited<ReturnType<typeof reminderRepo.list>>;
 		if (lineAccountId) {
 			// TODO: Migrate to createReminderRepository once list() supports lineAccountId filtering
 			const result = await c.env.DB.prepare(
@@ -29,21 +20,11 @@ reminders.get("/api/reminders", async (c) => {
 			)
 				.bind(lineAccountId)
 				.all();
-			items = result.results as unknown as Awaited<ReturnType<typeof getReminders>>;
+			items = result.results as unknown as Awaited<ReturnType<typeof reminderRepo.list>>;
 		} else {
-			items = await getReminders(c.env.DB);
+			items = await reminderRepo.list();
 		}
-		return c.json({
-			success: true,
-			data: items.map((r) => ({
-				id: r.id,
-				name: r.name,
-				description: r.description,
-				isActive: Boolean(r.is_active),
-				createdAt: r.created_at,
-				updatedAt: r.updated_at,
-			})),
-		});
+		return c.json({ success: true, data: items });
 	} catch (err) {
 		console.error("GET /api/reminders error:", err);
 		return c.json({ success: false, error: "Internal server error" }, 500);
@@ -52,28 +33,11 @@ reminders.get("/api/reminders", async (c) => {
 
 reminders.get("/api/reminders/:id", async (c) => {
 	try {
-		const id = c.req.param("id");
-		const [reminder, steps] = await Promise.all([getReminderById(c.env.DB, id), getReminderSteps(c.env.DB, id)]);
+		const db = c.get("db");
+		const reminderRepo = createReminderRepository(db);
+		const reminder = await reminderRepo.findById(c.req.param("id") as ReminderId);
 		if (!reminder) return c.json({ success: false, error: "Reminder not found" }, 404);
-		return c.json({
-			success: true,
-			data: {
-				id: reminder.id,
-				name: reminder.name,
-				description: reminder.description,
-				isActive: Boolean(reminder.is_active),
-				createdAt: reminder.created_at,
-				updatedAt: reminder.updated_at,
-				steps: steps.map((s) => ({
-					id: s.id,
-					reminderId: s.reminder_id,
-					offsetMinutes: s.offset_minutes,
-					messageType: s.message_type,
-					messageContent: s.message_content,
-					createdAt: s.created_at,
-				})),
-			},
-		});
+		return c.json({ success: true, data: reminder });
 	} catch (err) {
 		console.error("GET /api/reminders/:id error:", err);
 		return c.json({ success: false, error: "Internal server error" }, 500);
@@ -84,15 +48,17 @@ reminders.post("/api/reminders", async (c) => {
 	try {
 		const body = await c.req.json<{ name: string; description?: string; lineAccountId?: string | null }>();
 		if (!body.name) return c.json({ success: false, error: "name is required" }, 400);
-		const item = await createReminder(c.env.DB, body);
-		// TODO: Migrate to createReminderRepository once create() supports lineAccountId
+		const db = c.get("db");
+		const reminderRepo = createReminderRepository(db);
+		const id = await reminderRepo.create(body);
 		// Save line_account_id if provided
 		if (body.lineAccountId) {
 			await c.env.DB.prepare("UPDATE reminders SET line_account_id = ? WHERE id = ?")
-				.bind(body.lineAccountId, item.id)
+				.bind(body.lineAccountId, id)
 				.run();
 		}
-		return c.json({ success: true, data: { id: item.id, name: item.name, createdAt: item.created_at } }, 201);
+		const item = await reminderRepo.findById(id as ReminderId);
+		return c.json({ success: true, data: item }, 201);
 	} catch (err) {
 		console.error("POST /api/reminders error:", err);
 		return c.json({ success: false, error: "Internal server error" }, 500);
@@ -103,13 +69,12 @@ reminders.put("/api/reminders/:id", async (c) => {
 	try {
 		const id = c.req.param("id");
 		const body = await c.req.json();
-		await updateReminder(c.env.DB, id, body);
-		const updated = await getReminderById(c.env.DB, id);
+		const db = c.get("db");
+		const reminderRepo = createReminderRepository(db);
+		await reminderRepo.update(id as ReminderId, body);
+		const updated = await reminderRepo.findById(id as ReminderId);
 		if (!updated) return c.json({ success: false, error: "Not found" }, 404);
-		return c.json({
-			success: true,
-			data: { id: updated.id, name: updated.name, isActive: Boolean(updated.is_active) },
-		});
+		return c.json({ success: true, data: updated });
 	} catch (err) {
 		console.error("PUT /api/reminders/:id error:", err);
 		return c.json({ success: false, error: "Internal server error" }, 500);
@@ -118,7 +83,9 @@ reminders.put("/api/reminders/:id", async (c) => {
 
 reminders.delete("/api/reminders/:id", async (c) => {
 	try {
-		await deleteReminder(c.env.DB, c.req.param("id"));
+		const db = c.get("db");
+		const reminderRepo = createReminderRepository(db);
+		await reminderRepo.delete(c.req.param("id") as ReminderId);
 		return c.json({ success: true, data: null });
 	} catch (err) {
 		console.error("DELETE /api/reminders/:id error:", err);
@@ -135,20 +102,10 @@ reminders.post("/api/reminders/:id/steps", async (c) => {
 		if (body.offsetMinutes === undefined || !body.messageType || !body.messageContent) {
 			return c.json({ success: false, error: "offsetMinutes, messageType, messageContent are required" }, 400);
 		}
-		const step = await createReminderStep(c.env.DB, { reminderId, ...body });
-		return c.json(
-			{
-				success: true,
-				data: {
-					id: step.id,
-					reminderId: step.reminder_id,
-					offsetMinutes: step.offset_minutes,
-					messageType: step.message_type,
-					createdAt: step.created_at,
-				},
-			},
-			201,
-		);
+		const db = c.get("db");
+		const reminderRepo = createReminderRepository(db);
+		const id = await reminderRepo.addStep({ reminderId, ...body });
+		return c.json({ success: true, data: { id } }, 201);
 	} catch (err) {
 		console.error("POST /api/reminders/:id/steps error:", err);
 		return c.json({ success: false, error: "Internal server error" }, 500);
@@ -157,7 +114,9 @@ reminders.post("/api/reminders/:id/steps", async (c) => {
 
 reminders.delete("/api/reminders/:reminderId/steps/:stepId", async (c) => {
 	try {
-		await deleteReminderStep(c.env.DB, c.req.param("stepId"));
+		const db = c.get("db");
+		const reminderRepo = createReminderRepository(db);
+		await reminderRepo.removeStep(c.req.param("stepId"));
 		return c.json({ success: true, data: null });
 	} catch (err) {
 		console.error("DELETE /api/reminders/:reminderId/steps/:stepId error:", err);
@@ -173,20 +132,14 @@ reminders.post("/api/reminders/:id/enroll/:friendId", async (c) => {
 		const friendId = c.req.param("friendId");
 		const body = await c.req.json<{ targetDate: string }>();
 		if (!body.targetDate) return c.json({ success: false, error: "targetDate is required" }, 400);
-		const enrollment = await enrollFriendInReminder(c.env.DB, { friendId, reminderId, targetDate: body.targetDate });
-		return c.json(
-			{
-				success: true,
-				data: {
-					id: enrollment.id,
-					friendId: enrollment.friend_id,
-					reminderId: enrollment.reminder_id,
-					targetDate: enrollment.target_date,
-					status: enrollment.status,
-				},
-			},
-			201,
-		);
+		const db = c.get("db");
+		const reminderRepo = createReminderRepository(db);
+		const id = await reminderRepo.enrollFriend({
+			friendId: friendId as FriendId,
+			reminderId: reminderId as ReminderId,
+			targetDate: body.targetDate,
+		});
+		return c.json({ success: true, data: { id } }, 201);
 	} catch (err) {
 		console.error("POST /api/reminders/:id/enroll/:friendId error:", err);
 		return c.json({ success: false, error: "Internal server error" }, 500);
@@ -196,18 +149,10 @@ reminders.post("/api/reminders/:id/enroll/:friendId", async (c) => {
 reminders.get("/api/friends/:friendId/reminders", async (c) => {
 	try {
 		const friendId = c.req.param("friendId");
-		const items = await getFriendReminders(c.env.DB, friendId);
-		return c.json({
-			success: true,
-			data: items.map((fr) => ({
-				id: fr.id,
-				friendId: fr.friend_id,
-				reminderId: fr.reminder_id,
-				targetDate: fr.target_date,
-				status: fr.status,
-				createdAt: fr.created_at,
-			})),
-		});
+		const db = c.get("db");
+		const reminderRepo = createReminderRepository(db);
+		const items = await reminderRepo.getFriendReminders(friendId as FriendId);
+		return c.json({ success: true, data: items });
 	} catch (err) {
 		console.error("GET /api/friends/:friendId/reminders error:", err);
 		return c.json({ success: false, error: "Internal server error" }, 500);
@@ -216,7 +161,9 @@ reminders.get("/api/friends/:friendId/reminders", async (c) => {
 
 reminders.delete("/api/friend-reminders/:id", async (c) => {
 	try {
-		await cancelFriendReminder(c.env.DB, c.req.param("id"));
+		const db = c.get("db");
+		const reminderRepo = createReminderRepository(db);
+		await reminderRepo.cancelFriendReminder(c.req.param("id"));
 		return c.json({ success: true, data: null });
 	} catch (err) {
 		console.error("DELETE /api/friend-reminders/:id error:", err);

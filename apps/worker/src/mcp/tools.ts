@@ -20,20 +20,12 @@ import {
 	createFriendRepository,
 	createScenarioRepository,
 	createTagRepository,
-	enrollFriendInScenario,
-	getBroadcasts,
-	getFriendById,
-	getFriendCount,
-	getFriends,
-	getFriendTags,
-	getScenarios,
-	getTags,
 } from "@line-crm/db";
 import type { BroadcastId, FriendId, ScenarioId, ScenarioStepId } from "@line-crm/domain";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { Env } from "../index.js";
-import { clampPageSize, MCP_TOOLS, pageToOffset } from "./config.js";
+import { clampPageSize, MCP_TOOLS } from "./config.js";
 
 // ---------------------------------------------------------------------------
 // Helper: wrap a tool result as MCP text content
@@ -102,19 +94,21 @@ function registerListFriends(server: McpServer, db: D1Database): void {
 		},
 		async ({ page, limit, tagId }) => {
 			try {
+				const drizzle = createDb(db);
+				const friendRepo = createFriendRepository(drizzle);
 				const pageSize = clampPageSize(limit);
-				const offset = pageToOffset(page, pageSize);
-				const [friends, total] = await Promise.all([
-					getFriends(db, { limit: pageSize, offset, tagId }),
-					getFriendCount(db),
-				]);
+				const result = await friendRepo.listWithTags({
+					page,
+					limit: pageSize,
+					tagId: tagId as import("@line-crm/domain").TagId | undefined,
+				});
 				return textResult({
 					success: true,
-					total,
+					total: result.total,
 					page,
 					pageSize,
-					hasNextPage: offset + pageSize < total,
-					friends,
+					hasNextPage: result.total > page * pageSize,
+					friends: result.items,
 				});
 			} catch (error) {
 				return errorResult(error);
@@ -136,11 +130,13 @@ function registerGetFriendDetail(server: McpServer, db: D1Database): void {
 		},
 		async ({ friendId }) => {
 			try {
-				const [friend, friendTags] = await Promise.all([getFriendById(db, friendId), getFriendTags(db, friendId)]);
+				const drizzle = createDb(db);
+				const friendRepo = createFriendRepository(drizzle);
+				const friend = await friendRepo.findById(friendId as FriendId);
 				if (!friend) {
 					return errorResult(`Friend not found: ${friendId}`);
 				}
-				return textResult({ success: true, friend, tags: friendTags });
+				return textResult({ success: true, friend, tags: friend.tags });
 			} catch (error) {
 				return errorResult(error);
 			}
@@ -161,19 +157,20 @@ function registerListScenarios(server: McpServer, db: D1Database): void {
 		},
 		async ({ activeOnly }) => {
 			try {
-				const scenarios = await getScenarios(db);
-				const filtered = activeOnly ? scenarios.filter((s) => s.is_active === 1) : scenarios;
+				const drizzle = createDb(db);
+				const scenarioRepo = createScenarioRepository(drizzle);
+				const scenarios = activeOnly ? await scenarioRepo.listActive() : await scenarioRepo.list();
 				return textResult({
 					success: true,
-					total: filtered.length,
-					scenarios: filtered.map((s) => ({
+					total: scenarios.length,
+					scenarios: scenarios.map((s) => ({
 						id: s.id,
 						name: s.name,
 						description: s.description,
-						triggerType: s.trigger_type,
-						isActive: s.is_active === 1,
-						stepCount: s.step_count,
-						createdAt: s.created_at,
+						triggerType: s.triggerType,
+						isActive: s.isActive,
+						stepCount: s.steps.length,
+						createdAt: s.createdAt,
 					})),
 				});
 			} catch (error) {
@@ -197,8 +194,10 @@ function registerEnrollScenario(server: McpServer, db: D1Database): void {
 		},
 		async ({ friendId, scenarioId }) => {
 			try {
-				const result = await enrollFriendInScenario(db, friendId, scenarioId);
-				return textResult({ success: true, enrollment: result });
+				const drizzle = createDb(db);
+				const scenarioRepo = createScenarioRepository(drizzle);
+				const enrollmentId = await scenarioRepo.enrollFriend(friendId as FriendId, scenarioId as ScenarioId, null);
+				return textResult({ success: true, enrollment: { id: enrollmentId } });
 			} catch (error) {
 				return errorResult(error);
 			}
@@ -217,16 +216,13 @@ function registerManageTags(server: McpServer, db: D1Database): void {
 		{},
 		async () => {
 			try {
-				const tagList = await getTags(db);
+				const drizzle = createDb(db);
+				const tagRepo = createTagRepository(drizzle);
+				const tagList = await tagRepo.list();
 				return textResult({
 					success: true,
 					total: tagList.length,
-					tags: tagList.map((t) => ({
-						id: t.id,
-						name: t.name,
-						color: t.color,
-						createdAt: t.created_at,
-					})),
+					tags: tagList,
 				});
 			} catch (error) {
 				return errorResult(error);
@@ -246,22 +242,13 @@ function registerListBroadcasts(server: McpServer, db: D1Database): void {
 		{},
 		async () => {
 			try {
-				const broadcastList = await getBroadcasts(db);
+				const drizzle = createDb(db);
+				const broadcastRepo = createBroadcastRepository(drizzle);
+				const broadcastList = await broadcastRepo.list();
 				return textResult({
 					success: true,
 					total: broadcastList.length,
-					broadcasts: broadcastList.map((b) => ({
-						id: b.id,
-						title: b.title,
-						messageType: b.message_type,
-						targetType: b.target_type,
-						status: b.status,
-						scheduledAt: b.scheduled_at,
-						sentAt: b.sent_at,
-						totalCount: b.total_count,
-						successCount: b.success_count,
-						createdAt: b.created_at,
-					})),
+					broadcasts: broadcastList,
 				});
 			} catch (error) {
 				return errorResult(error);
@@ -281,14 +268,20 @@ function registerAccountSummary(server: McpServer, db: D1Database): void {
 		{},
 		async () => {
 			try {
+				const drizzle = createDb(db);
+				const friendRepo = createFriendRepository(drizzle);
+				const scenarioRepo = createScenarioRepository(drizzle);
+				const broadcastRepo = createBroadcastRepository(drizzle);
+				const tagRepo = createTagRepository(drizzle);
+
 				const [friendCount, scenarios, broadcasts, tagList] = await Promise.all([
-					getFriendCount(db),
-					getScenarios(db),
-					getBroadcasts(db),
-					getTags(db),
+					friendRepo.count(),
+					scenarioRepo.list(),
+					broadcastRepo.list(),
+					tagRepo.list(),
 				]);
 
-				const activeScenarios = scenarios.filter((s) => s.is_active === 1);
+				const activeScenarios = scenarios.filter((s) => s.isActive);
 				const recentBroadcasts = broadcasts.slice(0, 5);
 
 				return textResult({
@@ -301,7 +294,7 @@ function registerAccountSummary(server: McpServer, db: D1Database): void {
 							activeList: activeScenarios.map((s) => ({
 								id: s.id,
 								name: s.name,
-								triggerType: s.trigger_type,
+								triggerType: s.triggerType,
 							})),
 						},
 						broadcasts: {

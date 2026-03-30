@@ -76,7 +76,7 @@ export async function rateLimitMiddleware(c: Context, next: Next) {
 	const limit = isAuthenticated ? AUTHENTICATED_LIMIT : UNAUTHENTICATED_LIMIT;
 
 	const key = isAuthenticated
-		? `auth:${authHeader!.slice("Bearer ".length, "Bearer ".length + 16)}`
+		? `auth:${authHeader?.slice("Bearer ".length, "Bearer ".length + 16)}`
 		: `ip:${getClientIp(c)}`;
 
 	// Prune expired entries periodically

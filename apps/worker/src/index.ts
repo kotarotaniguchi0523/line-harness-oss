@@ -1,4 +1,4 @@
-import { getLineAccounts } from "@line-crm/db";
+import { createDb, createLineAccountRepository } from "@line-crm/db";
 import { LineClient } from "@line-crm/line-sdk";
 import { Hono } from "hono";
 import { applyAuthenticatedMiddleware, applyBaseMiddleware } from "./middleware/combined.js";
@@ -169,7 +169,9 @@ app.notFound((c) => c.json({ success: false, error: "Not found" }, 404));
 // Scheduled handler for cron triggers — runs for all active LINE accounts
 async function scheduled(_event: ScheduledEvent, env: Env["Bindings"], _ctx: ExecutionContext): Promise<void> {
 	// Get all active accounts from DB, plus the default env account
-	const dbAccounts = await getLineAccounts(env.DB);
+	const db = createDb(env.DB);
+	const accountRepo = createLineAccountRepository(db);
+	const dbAccounts = await accountRepo.list();
 	const activeTokens = new Set<string>();
 
 	// Default account from env
@@ -177,8 +179,8 @@ async function scheduled(_event: ScheduledEvent, env: Env["Bindings"], _ctx: Exe
 
 	// DB accounts
 	for (const account of dbAccounts) {
-		if (account.is_active) {
-			activeTokens.add(account.channel_access_token);
+		if (account.isActive) {
+			activeTokens.add(account.channelAccessToken);
 		}
 	}
 

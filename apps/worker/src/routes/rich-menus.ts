@@ -11,7 +11,8 @@
 // =============================================================================
 
 import { MEDIA_CONFIG } from "@line-crm/contracts";
-import { getFriendById } from "@line-crm/db";
+import { createFriendRepository } from "@line-crm/db";
+import type { FriendId } from "@line-crm/domain";
 import { LineClient } from "@line-crm/line-sdk";
 import { Hono } from "hono";
 import type { Env } from "../index.js";
@@ -183,14 +184,15 @@ richMenus.post("/api/friends/:friendId/rich-menu", async (c) => {
 			return c.json({ success: false, error: "richMenuId is required" }, 400);
 		}
 
-		const db = c.env.DB;
-		const friend = await getFriendById(db, friendId);
+		const db = c.get("db");
+		const friendRepo = createFriendRepository(db);
+		const friend = await friendRepo.findById(friendId as FriendId);
 		if (!friend) {
 			return c.json({ success: false, error: "Friend not found" }, 404);
 		}
 
 		const lineClient = new LineClient(c.env.LINE_CHANNEL_ACCESS_TOKEN);
-		await lineClient.linkRichMenuToUser(friend.line_user_id, body.richMenuId);
+		await lineClient.linkRichMenuToUser(friend.lineUserId, body.richMenuId);
 
 		return c.json({ success: true, data: null });
 	} catch (err) {
@@ -207,15 +209,16 @@ richMenus.post("/api/friends/:friendId/rich-menu", async (c) => {
 richMenus.delete("/api/friends/:friendId/rich-menu", async (c) => {
 	try {
 		const friendId = c.req.param("friendId");
-		const db = c.env.DB;
+		const db = c.get("db");
+		const friendRepo = createFriendRepository(db);
 
-		const friend = await getFriendById(db, friendId);
+		const friend = await friendRepo.findById(friendId as FriendId);
 		if (!friend) {
 			return c.json({ success: false, error: "Friend not found" }, 404);
 		}
 
 		const lineClient = new LineClient(c.env.LINE_CHANNEL_ACCESS_TOKEN);
-		await lineClient.unlinkRichMenuFromUser(friend.line_user_id);
+		await lineClient.unlinkRichMenuFromUser(friend.lineUserId);
 
 		return c.json({ success: true, data: null });
 	} catch (err) {

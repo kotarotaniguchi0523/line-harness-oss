@@ -9,14 +9,14 @@
  */
 
 import {
-	applyScoring,
-	createAutomationLog,
-	createNotification,
+	createAutomationRepository,
+	createDb,
+	createNotificationRepository,
+	createScoringRepository,
+	createWebhookConfigRepository,
 	DateTime,
-	getActiveAutomationsByEvent,
-	getActiveNotificationRulesByEvent,
-	getActiveOutgoingWebhooksByEvent,
 } from "@line-crm/db";
+import type { FriendId } from "@line-crm/domain";
 import { executeAction } from "./action-executor.js";
 import { sendAdConversions } from "./ad-conversion.js";
 
@@ -55,7 +55,9 @@ export async function fireEvent(
 /** 送信Webhookへの通知 */
 async function fireOutgoingWebhooks(db: D1Database, eventType: string, payload: EventPayload): Promise<void> {
 	try {
-		const webhooks = await getActiveOutgoingWebhooksByEvent(db, eventType);
+		const drizzle = createDb(db);
+		const webhookRepo = createWebhookConfigRepository(drizzle);
+		const webhooks = await webhookRepo.findActiveByEvent(eventType);
 		for (const wh of webhooks) {
 			try {
 				const body = JSON.stringify({
@@ -97,7 +99,9 @@ async function fireOutgoingWebhooks(db: D1Database, eventType: string, payload: 
 async function processScoring(db: D1Database, eventType: string, payload: EventPayload): Promise<void> {
 	if (!payload.friendId) return;
 	try {
-		await applyScoring(db, payload.friendId, eventType);
+		const drizzle = createDb(db);
+		const scoringRepo = createScoringRepository(drizzle);
+		await scoringRepo.applyScore(payload.friendId as FriendId, eventType);
 	} catch (err) {
 		console.error("processScoring error:", err);
 	}
@@ -112,15 +116,28 @@ async function processAutomations(
 	lineAccountId?: string | null,
 ): Promise<void> {
 	try {
-		const allAutomations = await getActiveAutomationsByEvent(db, eventType);
+		const drizzle = createDb(db);
+		const automationRepo = createAutomationRepository(drizzle);
+		const allAutomations = await automationRepo.findActiveByEvent(eventType);
 		// Filter by account: match this account's automations + unassigned (backward compat)
-		const automations = allAutomations.filter(
-			(a) => !(a.line_account_id && lineAccountId) || a.line_account_id === lineAccountId,
-		);
+		const automations = allAutomations.filter((a) => {
+			const lineAccId =
+				(a as unknown as Record<string, unknown>).lineAccountId ??
+				(a as unknown as Record<string, unknown>).line_account_id;
+			return !(lineAccId && lineAccountId) || lineAccId === lineAccountId;
+		});
 
 		for (const automation of automations) {
-			const conditions = JSON.parse(automation.conditions) as Record<string, unknown>;
-			const actions = JSON.parse(automation.actions) as Array<{ type: string; params: Record<string, string> }>;
+			const rawConditions = (automation as unknown as Record<string, unknown>).conditions;
+			const rawActions = (automation as unknown as Record<string, unknown>).actions;
+			const conditions = (typeof rawConditions === "string" ? JSON.parse(rawConditions) : rawConditions) as Record<
+				string,
+				unknown
+			>;
+			const actions = (typeof rawActions === "string" ? JSON.parse(rawActions) : rawActions) as Array<{
+				type: string;
+				params: Record<string, string>;
+			}>;
 
 			// 条件チェック（簡易版: 条件が空なら常にマッチ）
 			if (!matchConditions(conditions, payload)) continue;
@@ -141,8 +158,8 @@ async function processAutomations(
 			const allSuccess = results.every((r) => r.success);
 			const anySuccess = results.some((r) => r.success);
 
-			await createAutomationLog(db, {
-				automationId: automation.id,
+			await automationRepo.logExecution({
+				automationId: (automation as unknown as Record<string, unknown>).id as string,
 				friendId: payload.friendId,
 				eventData: JSON.stringify(payload.eventData ?? {}),
 				actionsResult: JSON.stringify(results),
@@ -189,19 +206,27 @@ async function processNotifications(
 	lineAccountId?: string | null,
 ): Promise<void> {
 	try {
-		const allRules = await getActiveNotificationRulesByEvent(db, eventType);
-		const rules = allRules.filter((r) => !(r.line_account_id && lineAccountId) || r.line_account_id === lineAccountId);
+		const drizzle = createDb(db);
+		const notifRepo = createNotificationRepository(drizzle);
+		const allRules = await notifRepo.findActiveRulesByEvent(eventType);
+		const rules = allRules.filter((r) => {
+			const lineAccId =
+				(r as unknown as Record<string, unknown>).lineAccountId ??
+				(r as unknown as Record<string, unknown>).line_account_id;
+			return !(lineAccId && lineAccountId) || lineAccId === lineAccountId;
+		});
 
 		for (const rule of rules) {
-			let channels: string[] = JSON.parse(rule.channels);
-			// Guard against double-encoded JSON strings (e.g. "\"[\\\"webhook\\\"]\"")
+			const rawChannels = (rule as unknown as Record<string, unknown>).channels;
+			let channels: string[] = typeof rawChannels === "string" ? JSON.parse(rawChannels) : (rawChannels as string[]);
+			// Guard against double-encoded JSON strings
 			if (typeof channels === "string") channels = JSON.parse(channels);
 
 			for (const channel of channels) {
-				await createNotification(db, {
-					ruleId: rule.id,
+				await notifRepo.createNotification({
+					ruleId: (rule as unknown as Record<string, unknown>).id as string,
 					eventType,
-					title: `${rule.name}: ${eventType}`,
+					title: `${(rule as unknown as Record<string, unknown>).name}: ${eventType}`,
 					body: JSON.stringify(payload),
 					channel,
 					metadata: JSON.stringify(payload.eventData ?? {}),

@@ -1,28 +1,9 @@
 import { MIDDLEWARE_LIMITS } from "@line-crm/contracts";
-import {
-	createAdPlatform,
-	deleteAdPlatform,
-	getAdConversionLogs,
-	getAdPlatformByName,
-	getAdPlatforms,
-	updateAdPlatform,
-} from "@line-crm/db";
+import { createAdPlatformRepository } from "@line-crm/db";
 import { Hono } from "hono";
 import { timeout } from "hono/timeout";
 import type { Env } from "../index.js";
 import { sendAdConversions } from "../services/ad-conversion.js";
-
-function maskConfig(config: Record<string, unknown>): Record<string, unknown> {
-	const masked: Record<string, unknown> = {};
-	for (const [key, value] of Object.entries(config)) {
-		if (typeof value === "string" && value.length > 8) {
-			masked[key] = `${value.slice(0, 4)}****${value.slice(-4)}`;
-		} else {
-			masked[key] = value;
-		}
-	}
-	return masked;
-}
 
 const adPlatforms = new Hono<Env>();
 
@@ -32,19 +13,10 @@ adPlatforms.use("*", timeout(MIDDLEWARE_LIMITS.externalApiTimeoutMs));
 // GET /api/ad-platforms - list all
 adPlatforms.get("/api/ad-platforms", async (c) => {
 	try {
-		const items = await getAdPlatforms(c.env.DB);
-		return c.json({
-			success: true,
-			data: items.map((p) => ({
-				id: p.id,
-				name: p.name,
-				displayName: p.display_name,
-				config: maskConfig(JSON.parse(p.config)),
-				isActive: !!p.is_active,
-				createdAt: p.created_at,
-				updatedAt: p.updated_at,
-			})),
-		});
+		const db = c.get("db");
+		const adPlatformRepo = createAdPlatformRepository(db);
+		const items = await adPlatformRepo.list();
+		return c.json({ success: true, data: items });
 	} catch (err) {
 		console.error("GET /api/ad-platforms error:", err);
 		return c.json({ success: false, error: "Internal server error" }, 500);
@@ -69,27 +41,15 @@ adPlatforms.post("/api/ad-platforms", async (c) => {
 			return c.json({ success: false, error: `name must be one of: ${validNames.join(", ")}` }, 400);
 		}
 
-		const platform = await createAdPlatform(c.env.DB, {
+		const db = c.get("db");
+		const adPlatformRepo = createAdPlatformRepository(db);
+		const id = await adPlatformRepo.create({
 			name: body.name,
 			displayName: body.displayName,
 			config: body.config,
 		});
-
-		return c.json(
-			{
-				success: true,
-				data: {
-					id: platform.id,
-					name: platform.name,
-					displayName: platform.display_name,
-					config: JSON.parse(platform.config),
-					isActive: !!platform.is_active,
-					createdAt: platform.created_at,
-					updatedAt: platform.updated_at,
-				},
-			},
-			201,
-		);
+		const platform = await adPlatformRepo.findById(id);
+		return c.json({ success: true, data: platform }, 201);
 	} catch (err) {
 		console.error("POST /api/ad-platforms error:", err);
 		return c.json({ success: false, error: "Internal server error" }, 500);
@@ -107,23 +67,15 @@ adPlatforms.put("/api/ad-platforms/:id", async (c) => {
 			isActive?: boolean;
 		}>();
 
-		const platform = await updateAdPlatform(c.env.DB, id, body);
+		const db = c.get("db");
+		const adPlatformRepo = createAdPlatformRepository(db);
+		await adPlatformRepo.update(id, body);
+		const platform = await adPlatformRepo.findById(id);
 		if (!platform) {
 			return c.json({ success: false, error: "Not found" }, 404);
 		}
 
-		return c.json({
-			success: true,
-			data: {
-				id: platform.id,
-				name: platform.name,
-				displayName: platform.display_name,
-				config: JSON.parse(platform.config),
-				isActive: !!platform.is_active,
-				createdAt: platform.created_at,
-				updatedAt: platform.updated_at,
-			},
-		});
+		return c.json({ success: true, data: platform });
 	} catch (err) {
 		console.error("PUT /api/ad-platforms/:id error:", err);
 		return c.json({ success: false, error: "Internal server error" }, 500);
@@ -143,7 +95,9 @@ adPlatforms.post("/api/ad-platforms/test", async (c) => {
 			return c.json({ success: false, error: "platform and eventName are required" }, 400);
 		}
 
-		const platform = await getAdPlatformByName(c.env.DB, body.platform);
+		const db = c.get("db");
+		const adPlatformRepo = createAdPlatformRepository(db);
+		const platform = await adPlatformRepo.findByName(body.platform);
 		if (!platform) {
 			return c.json({ success: false, error: `Platform "${body.platform}" not found or inactive` }, 404);
 		}
@@ -168,7 +122,9 @@ adPlatforms.post("/api/ad-platforms/test", async (c) => {
 // DELETE /api/ad-platforms/:id - delete
 adPlatforms.delete("/api/ad-platforms/:id", async (c) => {
 	try {
-		await deleteAdPlatform(c.env.DB, c.req.param("id"));
+		const db = c.get("db");
+		const adPlatformRepo = createAdPlatformRepository(db);
+		await adPlatformRepo.delete(c.req.param("id"));
 		return c.json({ success: true, data: null });
 	} catch (err) {
 		console.error("DELETE /api/ad-platforms/:id error:", err);
@@ -181,22 +137,10 @@ adPlatforms.get("/api/ad-platforms/:id/logs", async (c) => {
 	try {
 		const id = c.req.param("id");
 		const limit = Number(c.req.query("limit") ?? "50");
-		const logs = await getAdConversionLogs(c.env.DB, id, limit);
-
-		return c.json({
-			success: true,
-			data: logs.map((l) => ({
-				id: l.id,
-				adPlatformId: l.ad_platform_id,
-				friendId: l.friend_id,
-				eventName: l.event_name,
-				clickId: l.click_id,
-				clickIdType: l.click_id_type,
-				status: l.status,
-				errorMessage: l.error_message,
-				createdAt: l.created_at,
-			})),
-		});
+		const db = c.get("db");
+		const adPlatformRepo = createAdPlatformRepository(db);
+		const logs = await adPlatformRepo.getConversionLogs(id, limit);
+		return c.json({ success: true, data: logs });
 	} catch (err) {
 		console.error("GET /api/ad-platforms/:id/logs error:", err);
 		return c.json({ success: false, error: "Internal server error" }, 500);

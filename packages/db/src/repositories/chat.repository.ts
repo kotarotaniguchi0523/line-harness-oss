@@ -20,7 +20,70 @@ export function createChatRepository(db: Database) {
 		updatedAt: chats.updatedAt,
 	} as const;
 
+	const operatorColumns = {
+		id: operators.id,
+		name: operators.name,
+		email: operators.email,
+		role: operators.role,
+		isActive: operators.isActive,
+		createdAt: operators.createdAt,
+		updatedAt: operators.updatedAt,
+	} as const;
+
 	return {
+		// =====================================================================
+		// Operator CRUD
+		// =====================================================================
+
+		/** List all operators, newest first */
+		async listOperators() {
+			return db.select(operatorColumns).from(operators).orderBy(desc(operators.createdAt));
+		},
+
+		/** Find an operator by ID */
+		async findOperatorById(id: OperatorId) {
+			const [row] = await db.select(operatorColumns).from(operators).where(eq(operators.id, id));
+			return row ?? null;
+		},
+
+		/** Create a new operator, returns the generated ID */
+		async createOperator(data: { name: string; email: string; role?: string }): Promise<string> {
+			const id = crypto.randomUUID();
+			await db.insert(operators).values({
+				id,
+				name: data.name,
+				email: data.email,
+				role: data.role ?? "operator",
+			});
+			return id;
+		},
+
+		/** Partial update of an operator */
+		async updateOperator(
+			id: OperatorId,
+			updates: Partial<{ name: string; email: string; role: string; isActive: boolean }>,
+		): Promise<void> {
+			const setClause: Record<string, unknown> = {};
+			if (updates.name !== undefined) setClause.name = updates.name;
+			if (updates.email !== undefined) setClause.email = updates.email;
+			if (updates.role !== undefined) setClause.role = updates.role;
+			if (updates.isActive !== undefined) setClause.isActive = updates.isActive;
+
+			if (Object.keys(setClause).length === 0) return;
+			setClause.updatedAt = DateTime.now().toISO();
+
+			await db.update(operators).set(setClause).where(eq(operators.id, id));
+		},
+
+		/** Hard-delete an operator */
+		async deleteOperator(id: OperatorId): Promise<void> {
+			await db.delete(operators).where(eq(operators.id, id));
+		},
+
+		// =====================================================================
+		// Chat CRUD
+		// =====================================================================
+
 		/** List chats with optional status/operator filters */
 		async listChats(opts: { status?: string; operatorId?: OperatorId } = {}) {
 			const conditions: ReturnType<typeof eq>[] = [];

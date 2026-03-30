@@ -1,11 +1,4 @@
-import {
-	createConversionPoint,
-	deleteConversionPoint,
-	getConversionEvents,
-	getConversionPoints,
-	getConversionReport,
-	trackConversion,
-} from "@line-crm/db";
+import { createConversionRepository } from "@line-crm/db";
 import { Hono } from "hono";
 import type { Env } from "../index.js";
 
@@ -16,17 +9,10 @@ const conversions = new Hono<Env>();
 // GET /api/conversions/points - list all
 conversions.get("/api/conversions/points", async (c) => {
 	try {
-		const items = await getConversionPoints(c.env.DB);
-		return c.json({
-			success: true,
-			data: items.map((p) => ({
-				id: p.id,
-				name: p.name,
-				eventType: p.event_type,
-				value: p.value,
-				createdAt: p.created_at,
-			})),
-		});
+		const db = c.get("db");
+		const conversionRepo = createConversionRepository(db);
+		const items = await conversionRepo.listPoints();
+		return c.json({ success: true, data: items });
 	} catch (err) {
 		console.error("GET /api/conversions/points error:", err);
 		return c.json({ success: false, error: "Internal server error" }, 500);
@@ -46,20 +32,11 @@ conversions.post("/api/conversions/points", async (c) => {
 			return c.json({ success: false, error: "name and eventType are required" }, 400);
 		}
 
-		const point = await createConversionPoint(c.env.DB, body);
-		return c.json(
-			{
-				success: true,
-				data: {
-					id: point.id,
-					name: point.name,
-					eventType: point.event_type,
-					value: point.value,
-					createdAt: point.created_at,
-				},
-			},
-			201,
-		);
+		const db = c.get("db");
+		const conversionRepo = createConversionRepository(db);
+		const id = await conversionRepo.createPoint(body);
+		const point = await conversionRepo.findPointById(id);
+		return c.json({ success: true, data: point }, 201);
 	} catch (err) {
 		console.error("POST /api/conversions/points error:", err);
 		return c.json({ success: false, error: "Internal server error" }, 500);
@@ -69,7 +46,9 @@ conversions.post("/api/conversions/points", async (c) => {
 // DELETE /api/conversions/points/:id - delete
 conversions.delete("/api/conversions/points/:id", async (c) => {
 	try {
-		await deleteConversionPoint(c.env.DB, c.req.param("id"));
+		const db = c.get("db");
+		const conversionRepo = createConversionRepository(db);
+		await conversionRepo.deletePoint(c.req.param("id"));
 		return c.json({ success: true, data: null });
 	} catch (err) {
 		console.error("DELETE /api/conversions/points/:id error:", err);
@@ -94,29 +73,17 @@ conversions.post("/api/conversions/track", async (c) => {
 			return c.json({ success: false, error: "conversionPointId and friendId are required" }, 400);
 		}
 
-		const event = await trackConversion(c.env.DB, {
+		const db = c.get("db");
+		const conversionRepo = createConversionRepository(db);
+		const id = await conversionRepo.track({
 			conversionPointId: body.conversionPointId,
 			friendId: body.friendId,
-			userId: body.userId,
-			affiliateCode: body.affiliateCode,
-			metadata: body.metadata ? JSON.stringify(body.metadata) : null,
+			userId: body.userId ?? undefined,
+			affiliateCode: body.affiliateCode ?? undefined,
+			metadata: body.metadata ? JSON.stringify(body.metadata) : undefined,
 		});
-
-		return c.json(
-			{
-				success: true,
-				data: {
-					id: event.id,
-					conversionPointId: event.conversion_point_id,
-					friendId: event.friend_id,
-					userId: event.user_id,
-					affiliateCode: event.affiliate_code,
-					metadata: event.metadata,
-					createdAt: event.created_at,
-				},
-			},
-			201,
-		);
+		// Return success with the created ID
+		return c.json({ success: true, data: { id } }, 201);
 	} catch (err) {
 		console.error("POST /api/conversions/track error:", err);
 		return c.json({ success: false, error: "Internal server error" }, 500);
@@ -126,7 +93,9 @@ conversions.post("/api/conversions/track", async (c) => {
 // GET /api/conversions/events - list events with filters
 conversions.get("/api/conversions/events", async (c) => {
 	try {
-		const events = await getConversionEvents(c.env.DB, {
+		const db = c.get("db");
+		const conversionRepo = createConversionRepository(db);
+		const events = await conversionRepo.getEvents({
 			conversionPointId: c.req.query("conversionPointId"),
 			friendId: c.req.query("friendId"),
 			affiliateCode: c.req.query("affiliateCode"),
@@ -136,18 +105,7 @@ conversions.get("/api/conversions/events", async (c) => {
 			offset: Number(c.req.query("offset") ?? "0"),
 		});
 
-		return c.json({
-			success: true,
-			data: events.map((e) => ({
-				id: e.id,
-				conversionPointId: e.conversion_point_id,
-				friendId: e.friend_id,
-				userId: e.user_id,
-				affiliateCode: e.affiliate_code,
-				metadata: e.metadata,
-				createdAt: e.created_at,
-			})),
-		});
+		return c.json({ success: true, data: events });
 	} catch (err) {
 		console.error("GET /api/conversions/events error:", err);
 		return c.json({ success: false, error: "Internal server error" }, 500);
@@ -157,7 +115,9 @@ conversions.get("/api/conversions/events", async (c) => {
 // GET /api/conversions/report - aggregated report
 conversions.get("/api/conversions/report", async (c) => {
 	try {
-		const report = await getConversionReport(c.env.DB, {
+		const db = c.get("db");
+		const conversionRepo = createConversionRepository(db);
+		const report = await conversionRepo.getReport({
 			startDate: c.req.query("startDate"),
 			endDate: c.req.query("endDate"),
 		});

@@ -1,14 +1,6 @@
 import { AddScoreSchema, CreateScoringRuleSchema, UpdateScoringRuleSchema, UuidSchema } from "@line-crm/contracts";
-import {
-	addScore,
-	createScoringRule,
-	deleteScoringRule,
-	getFriendScore,
-	getFriendScoreHistory,
-	getScoringRuleById,
-	getScoringRules,
-	updateScoringRule,
-} from "@line-crm/db";
+import { createScoringRepository } from "@line-crm/db";
+import type { FriendId, ScoringRuleId } from "@line-crm/domain";
 import { Hono } from "hono";
 import { z } from "zod";
 import type { Env } from "../index.js";
@@ -20,19 +12,10 @@ const scoring = new Hono<Env>();
 
 scoring.get("/api/scoring-rules", async (c) => {
 	try {
-		const items = await getScoringRules(c.env.DB);
-		return c.json({
-			success: true,
-			data: items.map((r) => ({
-				id: r.id,
-				name: r.name,
-				eventType: r.event_type,
-				scoreValue: r.score_value,
-				isActive: Boolean(r.is_active),
-				createdAt: r.created_at,
-				updatedAt: r.updated_at,
-			})),
-		});
+		const db = c.get("db");
+		const scoringRepo = createScoringRepository(db);
+		const items = await scoringRepo.listRules();
+		return c.json({ success: true, data: items });
 	} catch (err) {
 		console.error("GET /api/scoring-rules error:", err);
 		return c.json({ success: false, error: "Internal server error" }, 500);
@@ -42,19 +25,11 @@ scoring.get("/api/scoring-rules", async (c) => {
 scoring.get("/api/scoring-rules/:id", validateParam(z.object({ id: UuidSchema })), async (c) => {
 	try {
 		const { id } = c.req.valid("param");
-		const item = await getScoringRuleById(c.env.DB, id);
+		const db = c.get("db");
+		const scoringRepo = createScoringRepository(db);
+		const item = await scoringRepo.findRuleById(id as ScoringRuleId);
 		if (!item) return c.json({ success: false, error: "Not found" }, 404);
-		return c.json({
-			success: true,
-			data: {
-				id: item.id,
-				name: item.name,
-				eventType: item.event_type,
-				scoreValue: item.score_value,
-				isActive: Boolean(item.is_active),
-				createdAt: item.created_at,
-			},
-		});
+		return c.json({ success: true, data: item });
 	} catch (err) {
 		console.error("GET /api/scoring-rules/:id error:", err);
 		return c.json({ success: false, error: "Internal server error" }, 500);
@@ -64,14 +39,11 @@ scoring.get("/api/scoring-rules/:id", validateParam(z.object({ id: UuidSchema })
 scoring.post("/api/scoring-rules", validateJson(CreateScoringRuleSchema), async (c) => {
 	try {
 		const body = c.req.valid("json");
-		const item = await createScoringRule(c.env.DB, body);
-		return c.json(
-			{
-				success: true,
-				data: { id: item.id, name: item.name, eventType: item.event_type, scoreValue: item.score_value },
-			},
-			201,
-		);
+		const db = c.get("db");
+		const scoringRepo = createScoringRepository(db);
+		const id = await scoringRepo.createRule(body);
+		const item = await scoringRepo.findRuleById(id as ScoringRuleId);
+		return c.json({ success: true, data: item }, 201);
 	} catch (err) {
 		console.error("POST /api/scoring-rules error:", err);
 		return c.json({ success: false, error: "Internal server error" }, 500);
@@ -86,19 +58,12 @@ scoring.put(
 		try {
 			const { id } = c.req.valid("param");
 			const body = c.req.valid("json");
-			await updateScoringRule(c.env.DB, id, body);
-			const updated = await getScoringRuleById(c.env.DB, id);
+			const db = c.get("db");
+			const scoringRepo = createScoringRepository(db);
+			await scoringRepo.updateRule(id as ScoringRuleId, body);
+			const updated = await scoringRepo.findRuleById(id as ScoringRuleId);
 			if (!updated) return c.json({ success: false, error: "Not found" }, 404);
-			return c.json({
-				success: true,
-				data: {
-					id: updated.id,
-					name: updated.name,
-					eventType: updated.event_type,
-					scoreValue: updated.score_value,
-					isActive: Boolean(updated.is_active),
-				},
-			});
+			return c.json({ success: true, data: updated });
 		} catch (err) {
 			console.error("PUT /api/scoring-rules/:id error:", err);
 			return c.json({ success: false, error: "Internal server error" }, 500);
@@ -109,7 +74,9 @@ scoring.put(
 scoring.delete("/api/scoring-rules/:id", validateParam(z.object({ id: UuidSchema })), async (c) => {
 	try {
 		const { id } = c.req.valid("param");
-		await deleteScoringRule(c.env.DB, id);
+		const db = c.get("db");
+		const scoringRepo = createScoringRepository(db);
+		await scoringRepo.deleteRule(id as ScoringRuleId);
 		return c.json({ success: true, data: null });
 	} catch (err) {
 		console.error("DELETE /api/scoring-rules/:id error:", err);
@@ -122,22 +89,18 @@ scoring.delete("/api/scoring-rules/:id", validateParam(z.object({ id: UuidSchema
 scoring.get("/api/friends/:id/score", validateParam(z.object({ id: UuidSchema })), async (c) => {
 	try {
 		const { id: friendId } = c.req.valid("param");
+		const db = c.get("db");
+		const scoringRepo = createScoringRepository(db);
 		const [score, history] = await Promise.all([
-			getFriendScore(c.env.DB, friendId),
-			getFriendScoreHistory(c.env.DB, friendId),
+			scoringRepo.getFriendScore(friendId as FriendId),
+			scoringRepo.getScoreHistory(friendId as FriendId),
 		]);
 		return c.json({
 			success: true,
 			data: {
 				friendId,
 				currentScore: score,
-				history: history.map((h) => ({
-					id: h.id,
-					scoringRuleId: h.scoring_rule_id,
-					scoreChange: h.score_change,
-					reason: h.reason,
-					createdAt: h.created_at,
-				})),
+				history,
 			},
 		});
 	} catch (err) {
@@ -155,8 +118,14 @@ scoring.post(
 		try {
 			const { id: friendId } = c.req.valid("param");
 			const body = c.req.valid("json");
-			await addScore(c.env.DB, { friendId, scoreChange: body.scoreChange, reason: body.reason });
-			const newScore = await getFriendScore(c.env.DB, friendId);
+			const db = c.get("db");
+			const scoringRepo = createScoringRepository(db);
+			await scoringRepo.addScore({
+				friendId: friendId as FriendId,
+				scoreChange: body.scoreChange,
+				reason: body.reason,
+			});
+			const newScore = await scoringRepo.getFriendScore(friendId as FriendId);
 			return c.json({ success: true, data: { friendId, currentScore: newScore } }, 201);
 		} catch (err) {
 			console.error("POST /api/friends/:id/score error:", err);

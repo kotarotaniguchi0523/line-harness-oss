@@ -5,7 +5,7 @@
 // =============================================================================
 
 import { JOB_QUEUE_CONFIG } from "@line-crm/contracts";
-import { createDb, DateTime, getLineAccounts } from "@line-crm/db";
+import { createDb, createLineAccountRepository, DateTime } from "@line-crm/db";
 import { jobRetries } from "@line-crm/db/schema";
 import { LineClient } from "@line-crm/line-sdk";
 import type { Env } from "../index.js";
@@ -244,11 +244,13 @@ async function resolveLineCredentials(
 	lineAccountId: string | null,
 ): Promise<{ accessToken: string; workerUrl: string }> {
 	if (lineAccountId) {
-		const accounts = await getLineAccounts(env.DB);
-		const account = accounts.find((a) => a.id === lineAccountId && a.is_active);
+		const drizzle = createDb(env.DB);
+		const accountRepo = createLineAccountRepository(drizzle);
+		const accounts = await accountRepo.list();
+		const account = accounts.find((a) => a.id === lineAccountId && a.isActive);
 		if (account) {
 			return {
-				accessToken: account.channel_access_token,
+				accessToken: account.channelAccessToken,
 				workerUrl: env.WORKER_URL,
 			};
 		}

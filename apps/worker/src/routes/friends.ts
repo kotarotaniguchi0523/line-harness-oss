@@ -328,12 +328,13 @@ friends.post(
 			}
 
 			const { LineClient } = await import("@line-crm/line-sdk");
+			const { createLineAccountRepository } = await import("@line-crm/db");
 			// Resolve access token from friend's account (multi-account support)
 			let accessToken = c.env.LINE_CHANNEL_ACCESS_TOKEN;
 			if (friend.lineAccountId) {
-				const { getLineAccountById } = await import("@line-crm/db");
-				const account = await getLineAccountById(c.env.DB, friend.lineAccountId);
-				if (account) accessToken = account.channel_access_token;
+				const accountRepo = createLineAccountRepository(db);
+				const account = await accountRepo.findById(friend.lineAccountId as import("@line-crm/domain").LineAccountId);
+				if (account) accessToken = (account as unknown as Record<string, unknown>).channelAccessToken as string;
 			}
 			const lineClient = new LineClient(accessToken);
 			const messageType = body.messageType ?? "text";

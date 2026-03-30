@@ -1,5 +1,5 @@
 import { AUTH_CONSTANTS, HTTP_ERRORS, PUBLIC_ROUTES } from "@line-crm/contracts";
-import { getStaffByApiKey } from "@line-crm/db";
+import { createDb, createStaffRepository } from "@line-crm/db";
 import type { Context, Next } from "hono";
 import { getCookie } from "hono/cookie";
 import type { Env } from "../index.js";
@@ -7,7 +7,7 @@ import type { Env } from "../index.js";
 /** Staff context resolved from session or API key authentication */
 type StaffContext = { id: string; name: string; role: "owner" | "admin" | "staff" };
 
-export async function authMiddleware(c: Context<Env>, next: Next): Promise<Response | void> {
+export async function authMiddleware(c: Context<Env>, next: Next): Promise<Response | undefined> {
 	const path = new URL(c.req.url).pathname;
 
 	// Skip auth for public endpoints (defined in @line-crm/contracts)
@@ -35,9 +35,11 @@ export async function authMiddleware(c: Context<Env>, next: Next): Promise<Respo
 	if (authHeader?.startsWith("Bearer ")) {
 		const token = authHeader.slice("Bearer ".length);
 
-		const staff = await getStaffByApiKey(c.env.DB, token);
+		const db = createDb(c.env.DB);
+		const staffRepo = createStaffRepository(db);
+		const staff = await staffRepo.findByApiKey(token);
 		if (staff) {
-			c.set("staff", { id: staff.id, name: staff.name, role: staff.role });
+			c.set("staff", { id: staff.id, name: staff.name, role: staff.role as "owner" | "admin" | "staff" });
 			return next();
 		}
 

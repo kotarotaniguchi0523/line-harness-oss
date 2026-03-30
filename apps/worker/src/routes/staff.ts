@@ -1,13 +1,5 @@
-import type { StaffMember } from "@line-crm/db";
-import {
-	countActiveStaffByRole,
-	createStaffMember,
-	deleteStaffMember,
-	getStaffById,
-	getStaffMembers,
-	regenerateStaffApiKey,
-	updateStaffMember,
-} from "@line-crm/db";
+import { createStaffRepository } from "@line-crm/db";
+import type { StaffId } from "@line-crm/domain";
 import { Hono } from "hono";
 import type { Env } from "../index.js";
 import { requireRole } from "../middleware/role-guard.js";
@@ -18,16 +10,17 @@ function maskApiKey(key: string): string {
 	return `lh_****${key.slice(-4)}`;
 }
 
-function serializeStaff(row: StaffMember, masked = true) {
+function serializeStaff(row: Awaited<ReturnType<ReturnType<typeof createStaffRepository>["findById"]>>, masked = true) {
+	if (!row) return null;
 	return {
 		id: row.id,
 		name: row.name,
 		email: row.email,
 		role: row.role,
-		apiKey: masked ? maskApiKey(row.api_key) : row.api_key,
-		isActive: Boolean(row.is_active),
-		createdAt: row.created_at,
-		updatedAt: row.updated_at,
+		apiKey: masked ? maskApiKey(row.apiKey) : row.apiKey,
+		isActive: row.isActive,
+		createdAt: row.createdAt,
+		updatedAt: row.updatedAt,
 	};
 }
 
@@ -49,7 +42,9 @@ staff.get("/api/staff/me", async (c) => {
 			});
 		}
 
-		const member = await getStaffById(c.env.DB, currentStaff.id);
+		const db = c.get("db");
+		const staffRepo = createStaffRepository(db);
+		const member = await staffRepo.findById(currentStaff.id as StaffId);
 		if (!member) {
 			return c.json({ success: false, error: "Staff member not found" }, 404);
 		}
@@ -72,7 +67,9 @@ staff.get("/api/staff/me", async (c) => {
 // GET /api/staff — owner only. List all staff with masked API keys.
 staff.get("/api/staff", requireRole("owner"), async (c) => {
 	try {
-		const members = await getStaffMembers(c.env.DB);
+		const db = c.get("db");
+		const staffRepo = createStaffRepository(db);
+		const members = await staffRepo.list();
 		return c.json({ success: true, data: members.map((m) => serializeStaff(m, true)) });
 	} catch (err) {
 		console.error("GET /api/staff error:", err);
@@ -84,7 +81,9 @@ staff.get("/api/staff", requireRole("owner"), async (c) => {
 staff.get("/api/staff/:id", requireRole("owner"), async (c) => {
 	try {
 		const id = c.req.param("id") as string;
-		const member = await getStaffById(c.env.DB, id);
+		const db = c.get("db");
+		const staffRepo = createStaffRepository(db);
+		const member = await staffRepo.findById(id as StaffId);
 		if (!member) {
 			return c.json({ success: false, error: "Staff member not found" }, 404);
 		}
@@ -109,11 +108,14 @@ staff.post("/api/staff", requireRole("owner"), async (c) => {
 			return c.json({ success: false, error: "role must be owner, admin, or staff" }, 400);
 		}
 
-		const member = await createStaffMember(c.env.DB, {
+		const db = c.get("db");
+		const staffRepo = createStaffRepository(db);
+		const id = await staffRepo.create({
 			name: body.name,
 			email: body.email ?? null,
 			role: body.role as "owner" | "admin" | "staff",
 		});
+		const member = await staffRepo.findById(id as StaffId);
 
 		// Return full (unmasked) API key one-time
 		return c.json({ success: true, data: serializeStaff(member, false) }, 201);
@@ -139,28 +141,32 @@ staff.patch("/api/staff/:id", requireRole("owner"), async (c) => {
 			return c.json({ success: false, error: "role must be owner, admin, or staff" }, 400);
 		}
 
+		const db = c.get("db");
+		const staffRepo = createStaffRepository(db);
+
 		// Prevent removing the last active owner
-		const target = await getStaffById(c.env.DB, id);
+		const target = await staffRepo.findById(id as StaffId);
 		if (!target) {
 			return c.json({ success: false, error: "Staff member not found" }, 404);
 		}
-		if (target.role === "owner" && target.is_active === 1) {
+		if (target.role === "owner" && target.isActive) {
 			const willLoseOwner = (body.role !== undefined && body.role !== "owner") || body.isActive === false;
 			if (willLoseOwner) {
-				const ownerCount = await countActiveStaffByRole(c.env.DB, "owner");
+				const ownerCount = await staffRepo.countByRole("owner");
 				if (ownerCount <= 1) {
 					return c.json({ success: false, error: "オーナーは最低1人必要です" }, 400);
 				}
 			}
 		}
 
-		const updated = await updateStaffMember(c.env.DB, id, {
+		await staffRepo.update(id as StaffId, {
 			name: body.name,
 			email: body.email,
 			role: body.role as "owner" | "admin" | "staff" | undefined,
-			is_active: body.isActive !== undefined ? (body.isActive ? 1 : 0) : undefined,
+			isActive: body.isActive,
 		});
 
+		const updated = await staffRepo.findById(id as StaffId);
 		if (!updated) {
 			return c.json({ success: false, error: "Staff member not found" }, 404);
 		}
@@ -182,19 +188,21 @@ staff.delete("/api/staff/:id", requireRole("owner"), async (c) => {
 			return c.json({ success: false, error: "自分自身は削除できません" }, 400);
 		}
 
-		const target = await getStaffById(c.env.DB, id);
+		const db = c.get("db");
+		const staffRepo = createStaffRepository(db);
+		const target = await staffRepo.findById(id as StaffId);
 		if (!target) {
 			return c.json({ success: false, error: "Staff member not found" }, 404);
 		}
 
-		if (target.role === "owner" && target.is_active === 1) {
-			const ownerCount = await countActiveStaffByRole(c.env.DB, "owner");
+		if (target.role === "owner" && target.isActive) {
+			const ownerCount = await staffRepo.countByRole("owner");
 			if (ownerCount <= 1) {
 				return c.json({ success: false, error: "オーナーは最低1人必要です" }, 400);
 			}
 		}
 
-		await deleteStaffMember(c.env.DB, id);
+		await staffRepo.delete(id as StaffId);
 		return c.json({ success: true, data: null });
 	} catch (err) {
 		console.error("DELETE /api/staff/:id error:", err);
@@ -206,11 +214,13 @@ staff.delete("/api/staff/:id", requireRole("owner"), async (c) => {
 staff.post("/api/staff/:id/regenerate-key", requireRole("owner"), async (c) => {
 	try {
 		const id = c.req.param("id") as string;
-		const exists = await getStaffById(c.env.DB, id);
+		const db = c.get("db");
+		const staffRepo = createStaffRepository(db);
+		const exists = await staffRepo.findById(id as StaffId);
 		if (!exists) {
 			return c.json({ success: false, error: "Staff member not found" }, 404);
 		}
-		const newKey = await regenerateStaffApiKey(c.env.DB, id);
+		const newKey = await staffRepo.regenerateApiKey(id as StaffId);
 		return c.json({ success: true, data: { apiKey: newKey } });
 	} catch (err) {
 		console.error("POST /api/staff/:id/regenerate-key error:", err);

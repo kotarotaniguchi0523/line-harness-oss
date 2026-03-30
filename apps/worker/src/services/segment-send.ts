@@ -1,7 +1,7 @@
 import { API_DEFAULTS } from "@line-crm/contracts";
-import type { Broadcast } from "@line-crm/db";
-import { createDb, DateTime, getBroadcastById, updateBroadcastStatus } from "@line-crm/db";
+import { createBroadcastRepository, createDb, DateTime } from "@line-crm/db";
 import { messagesLog } from "@line-crm/db/schema";
+import type { BroadcastId } from "@line-crm/domain";
 import type { LineClient } from "@line-crm/line-sdk";
 import { buildMessage } from "./message-builder.js";
 import type { SegmentCondition } from "./segment-query.js";
@@ -21,15 +21,18 @@ export async function processSegmentSend(
 	broadcastId: string,
 	condition: SegmentCondition,
 ): Promise<Broadcast> {
-	// Mark as sending
-	await updateBroadcastStatus(db, broadcastId, "sending");
+	const drizzle = createDb(db);
+	const broadcastRepo = createBroadcastRepository(drizzle);
 
-	const broadcast = await getBroadcastById(db, broadcastId);
+	// Mark as sending
+	await broadcastRepo.updateStatus(broadcastId as BroadcastId, "sending");
+
+	const broadcast = await broadcastRepo.findById(broadcastId as BroadcastId);
 	if (!broadcast) {
 		throw new Error(`Broadcast ${broadcastId} not found`);
 	}
 
-	const message = buildMessage(broadcast.message_type, broadcast.message_content);
+	const message = buildMessage(broadcast.messageType, broadcast.messageContent);
 
 	let totalCount = 0;
 	let successCount = 0;
@@ -76,8 +79,8 @@ export async function processSegmentSend(
 						id: crypto.randomUUID(),
 						friendId: friend.id,
 						direction: "outgoing",
-						messageType: broadcast.message_type,
-						content: broadcast.message_content,
+						messageType: broadcast.messageType,
+						content: broadcast.messageContent,
 						broadcastId,
 						scenarioStepId: null,
 					});
@@ -88,14 +91,14 @@ export async function processSegmentSend(
 			}
 		}
 
-		await updateBroadcastStatus(db, broadcastId, "sent", { totalCount, successCount });
+		await broadcastRepo.updateStatus(broadcastId as BroadcastId, "sent", { totalCount, successCount });
 	} catch (err) {
 		// On failure, reset to draft so it can be retried
-		await updateBroadcastStatus(db, broadcastId, "draft");
+		await broadcastRepo.updateStatus(broadcastId as BroadcastId, "draft");
 		throw err;
 	}
 
-	const result = await getBroadcastById(db, broadcastId);
+	const result = await broadcastRepo.findById(broadcastId as BroadcastId);
 	if (!result) throw new Error(`Broadcast ${broadcastId} not found after send`);
 	return result;
 }

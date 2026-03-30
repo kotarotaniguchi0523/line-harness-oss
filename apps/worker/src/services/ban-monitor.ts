@@ -5,15 +5,17 @@
  * 403/429 エラーのパターンを分析してリスクレベルを判定
  */
 
-import { createAccountHealthLog, createDb, getLineAccounts } from "@line-crm/db";
+import { createDb, createHealthRepository, createLineAccountRepository } from "@line-crm/db";
 import { messagesLog } from "@line-crm/db/schema";
 import { and, eq, sql } from "drizzle-orm";
 
 export async function checkAccountHealth(db: D1Database): Promise<void> {
-	const accounts = await getLineAccounts(db);
+	const drizzle = createDb(db);
+	const accountRepo = createLineAccountRepository(drizzle);
+	const accounts = await accountRepo.list();
 
 	for (const account of accounts) {
-		if (!account.is_active) continue;
+		if (!account.isActive) continue;
 
 		try {
 			await checkSingleAccount(db, account);
@@ -23,10 +25,7 @@ export async function checkAccountHealth(db: D1Database): Promise<void> {
 	}
 }
 
-async function checkSingleAccount(
-	db: D1Database,
-	account: { id: string; channel_access_token: string },
-): Promise<void> {
+async function checkSingleAccount(db: D1Database, account: { id: string; channelAccessToken: string }): Promise<void> {
 	const jstMs = Date.now() + 9 * 60 * 60_000;
 	const now = new Date(jstMs);
 	const checkPeriod = `${now.toISOString().slice(0, -1)}+09:00`;
@@ -36,6 +35,7 @@ async function checkSingleAccount(
 	const oneHourAgo = `${new Date(jstMs - 60 * 60_000).toISOString().slice(0, -1)}+09:00`;
 
 	const drizzle = createDb(db);
+	const healthRepo = createHealthRepository(drizzle);
 	const [sentMessages] = await drizzle
 		.select({ count: sql<number>`count(*)` })
 		.from(messagesLog)
@@ -49,7 +49,7 @@ async function checkSingleAccount(
 
 	try {
 		const response = await fetch("https://api.line.me/v2/bot/info", {
-			headers: { Authorization: `Bearer ${account.channel_access_token}` },
+			headers: { Authorization: `Bearer ${account.channelAccessToken}` },
 		});
 
 		if (!response.ok) {
@@ -70,8 +70,7 @@ async function checkSingleAccount(
 	} else if (totalSent > 5000) {
 		riskLevel = "warning"; // 大量送信の警告
 	}
-
-	await createAccountHealthLog(db, {
+	await healthRepo.createLog({
 		lineAccountId: account.id,
 		errorCode: errorCode ?? undefined,
 		errorCount,

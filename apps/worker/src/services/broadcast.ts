@@ -1,14 +1,7 @@
 import { API_DEFAULTS } from "@line-crm/contracts";
-import type { Broadcast } from "@line-crm/db";
-import {
-	createDb,
-	DateTime,
-	getBroadcastById,
-	getBroadcasts,
-	getFriendsByTag,
-	updateBroadcastStatus,
-} from "@line-crm/db";
+import { createBroadcastRepository, createDb, createTagRepository, DateTime } from "@line-crm/db";
 import { messagesLog } from "@line-crm/db/schema";
+import type { BroadcastId, TagId } from "@line-crm/domain";
 import type { LineClient } from "@line-crm/line-sdk";
 import { buildMessage } from "./message-builder.js";
 import { addMessageVariation, calculateStaggerDelay, sleep } from "./stealth.js";
@@ -20,21 +13,25 @@ export async function processBroadcastSend(
 	lineClient: LineClient,
 	broadcastId: string,
 	workerUrl?: string,
-): Promise<Broadcast> {
-	// Mark as sending
-	await updateBroadcastStatus(db, broadcastId, "sending");
+) {
+	const drizzle = createDb(db);
+	const broadcastRepo = createBroadcastRepository(drizzle);
+	const tagRepo = createTagRepository(drizzle);
 
-	const broadcast = await getBroadcastById(db, broadcastId);
+	// Mark as sending
+	await broadcastRepo.updateStatus(broadcastId as BroadcastId, "sending");
+
+	const broadcast = await broadcastRepo.findById(broadcastId as BroadcastId);
 	if (!broadcast) {
 		throw new Error(`Broadcast ${broadcastId} not found`);
 	}
 
 	// Auto-wrap URLs with tracking links (text with URLs → Flex with button)
-	let finalType: string = broadcast.message_type;
-	let finalContent = broadcast.message_content;
+	let finalType: string = broadcast.messageType;
+	let finalContent = broadcast.messageContent;
 	if (workerUrl) {
 		const { autoTrackContent } = await import("./auto-track.js");
-		const tracked = await autoTrackContent(db, broadcast.message_type, broadcast.message_content, workerUrl);
+		const tracked = await autoTrackContent(db, broadcast.messageType, broadcast.messageContent, workerUrl);
 		finalType = tracked.messageType;
 		finalContent = tracked.content;
 	}
@@ -43,19 +40,23 @@ export async function processBroadcastSend(
 	let successCount = 0;
 
 	try {
-		if (broadcast.target_type === "all") {
+		if (broadcast.targetType === "all") {
 			// Use LINE broadcast API (sends to all followers)
 			await lineClient.broadcast([message]);
 			// We don't have exact count for broadcast API, set as 0 (unknown)
 			totalCount = 0;
 			successCount = 0;
-		} else if (broadcast.target_type === "tag") {
-			if (!broadcast.target_tag_id) {
+		} else if (broadcast.targetType === "tag") {
+			if (!broadcast.targetTagId) {
 				throw new Error("target_tag_id is required for tag-targeted broadcasts");
 			}
 
-			const friends = await getFriendsByTag(db, broadcast.target_tag_id);
-			const followingFriends = friends.filter((f) => f.is_following);
+			const tagFriends = await tagRepo.getFriendsByTag(broadcast.targetTagId as TagId);
+			const followingFriends = tagFriends.filter(
+				(f) =>
+					(f as unknown as Record<string, unknown>).isFollowing ??
+					(f as unknown as Record<string, unknown>).is_following,
+			);
 			totalCount = followingFriends.length;
 
 			// Send in batches with stealth delays to mimic human patterns
@@ -65,7 +66,11 @@ export async function processBroadcastSend(
 			for (let i = 0; i < followingFriends.length; i += MULTICAST_BATCH_SIZE) {
 				const batchIndex = Math.floor(i / MULTICAST_BATCH_SIZE);
 				const batch = followingFriends.slice(i, i + MULTICAST_BATCH_SIZE);
-				const lineUserIds = batch.map((f) => f.line_user_id);
+				const lineUserIds = batch.map(
+					(f) =>
+						((f as unknown as Record<string, unknown>).lineUserId as string) ??
+						((f as unknown as Record<string, unknown>).line_user_id as string),
+				);
 
 				// Stealth: add staggered delay between batches
 				if (batchIndex > 0) {
@@ -89,8 +94,8 @@ export async function processBroadcastSend(
 							id: crypto.randomUUID(),
 							friendId: friend.id,
 							direction: "outgoing" as const,
-							messageType: broadcast.message_type,
-							content: broadcast.message_content,
+							messageType: broadcast.messageType,
+							content: broadcast.messageContent,
 							broadcastId,
 							scenarioStepId: null,
 						})),
@@ -102,14 +107,14 @@ export async function processBroadcastSend(
 			}
 		}
 
-		await updateBroadcastStatus(db, broadcastId, "sent", { totalCount, successCount });
+		await broadcastRepo.updateStatus(broadcastId as BroadcastId, "sent", { totalCount, successCount });
 	} catch (err) {
 		// On failure, reset to draft so it can be retried
-		await updateBroadcastStatus(db, broadcastId, "draft");
+		await broadcastRepo.updateStatus(broadcastId as BroadcastId, "draft");
 		throw err;
 	}
 
-	const result = await getBroadcastById(db, broadcastId);
+	const result = await broadcastRepo.findById(broadcastId as BroadcastId);
 	if (!result) throw new Error(`Broadcast ${broadcastId} not found after send`);
 	return result;
 }
@@ -119,12 +124,14 @@ export async function processScheduledBroadcasts(
 	lineClient: LineClient,
 	workerUrl?: string,
 ): Promise<void> {
+	const drizzle = createDb(db);
+	const broadcastRepo = createBroadcastRepository(drizzle);
 	const _now = DateTime.now().toISO();
-	const allBroadcasts = await getBroadcasts(db);
+	const allBroadcasts = await broadcastRepo.list();
 
 	const nowMs = Date.now();
 	const scheduled = allBroadcasts.filter(
-		(b) => b.status === "scheduled" && b.scheduled_at !== null && new Date(b.scheduled_at).getTime() <= nowMs,
+		(b) => b.status === "scheduled" && b.scheduledAt !== null && new Date(b.scheduledAt).getTime() <= nowMs,
 	);
 
 	for (const broadcast of scheduled) {

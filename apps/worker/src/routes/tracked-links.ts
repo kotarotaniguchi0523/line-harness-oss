@@ -1,16 +1,11 @@
 import { type CreateTrackedLinkRequest, CreateTrackedLinkSchema } from "@line-crm/contracts";
-import type { TrackedLink } from "@line-crm/db";
 import {
-	addTagToFriend,
-	createTrackedLink,
-	deleteTrackedLink,
-	enrollFriendInScenario,
-	getFriendByLineUserId,
-	getLinkClicks,
-	getTrackedLinkById,
-	getTrackedLinks,
-	recordLinkClick,
+	createFriendRepository,
+	createScenarioRepository,
+	createTagRepository,
+	createTrackedLinkRepository,
 } from "@line-crm/db";
+import type { FriendId, LineUserId, ScenarioId, TagId } from "@line-crm/domain";
 import { Hono } from "hono";
 import type { Env } from "../index.js";
 import { validateJson } from "../middleware/validate.js";
@@ -18,22 +13,6 @@ import { validateJson } from "../middleware/validate.js";
 const LINE_APP_UA_PATTERN = /\bLine\b/i;
 
 const trackedLinks = new Hono<Env>();
-
-function serializeTrackedLink(row: TrackedLink, baseUrl: string) {
-	const trackingUrl = `${baseUrl}/t/${row.id}`;
-	return {
-		id: row.id,
-		name: row.name,
-		originalUrl: row.original_url,
-		trackingUrl,
-		tagId: row.tag_id,
-		scenarioId: row.scenario_id,
-		isActive: Boolean(row.is_active),
-		clickCount: row.click_count,
-		createdAt: row.created_at,
-		updatedAt: row.updated_at,
-	};
-}
 
 function getBaseUrl(c: { req: { url: string } }): string {
 	const url = new URL(c.req.url);
@@ -43,9 +22,17 @@ function getBaseUrl(c: { req: { url: string } }): string {
 // GET /api/tracked-links — list all
 trackedLinks.get("/api/tracked-links", async (c) => {
 	try {
-		const items = await getTrackedLinks(c.env.DB);
+		const db = c.get("db");
+		const linkRepo = createTrackedLinkRepository(db);
+		const items = await linkRepo.list();
 		const base = getBaseUrl(c);
-		return c.json({ success: true, data: items.map((item) => serializeTrackedLink(item, base)) });
+		return c.json({
+			success: true,
+			data: items.map((item) => ({
+				...item,
+				trackingUrl: `${base}/t/${item.id}`,
+			})),
+		});
 	} catch (err) {
 		console.error("GET /api/tracked-links error:", err);
 		return c.json({ success: false, error: "Internal server error" }, 500);
@@ -56,22 +43,20 @@ trackedLinks.get("/api/tracked-links", async (c) => {
 trackedLinks.get("/api/tracked-links/:id", async (c) => {
 	try {
 		const id = c.req.param("id");
-		const link = await getTrackedLinkById(c.env.DB, id);
+		const db = c.get("db");
+		const linkRepo = createTrackedLinkRepository(db);
+		const link = await linkRepo.findById(id);
 		if (!link) {
 			return c.json({ success: false, error: "Tracked link not found" }, 404);
 		}
-		const clicks = await getLinkClicks(c.env.DB, id);
+		const clicks = await linkRepo.getClicks(id);
 		const base = getBaseUrl(c);
 		return c.json({
 			success: true,
 			data: {
-				...serializeTrackedLink(link, base),
-				clicks: clicks.map((click) => ({
-					id: click.id,
-					friendId: click.friend_id,
-					friendDisplayName: click.friend_display_name,
-					clickedAt: click.clicked_at,
-				})),
+				...link,
+				trackingUrl: `${base}/t/${link.id}`,
+				clicks,
 			},
 		});
 	} catch (err) {
@@ -84,16 +69,19 @@ trackedLinks.get("/api/tracked-links/:id", async (c) => {
 trackedLinks.post("/api/tracked-links", validateJson(CreateTrackedLinkSchema), async (c) => {
 	try {
 		const body: CreateTrackedLinkRequest = c.req.valid("json");
+		const db = c.get("db");
+		const linkRepo = createTrackedLinkRepository(db);
 
-		const link = await createTrackedLink(c.env.DB, {
+		const id = await linkRepo.create({
 			name: body.name,
 			originalUrl: body.originalUrl,
 			tagId: body.tagId ?? null,
 			scenarioId: body.scenarioId ?? null,
 		});
 
+		const link = await linkRepo.findById(id);
 		const base = getBaseUrl(c);
-		return c.json({ success: true, data: serializeTrackedLink(link, base) }, 201);
+		return c.json({ success: true, data: { ...link, trackingUrl: `${base}/t/${id}` } }, 201);
 	} catch (err) {
 		console.error("POST /api/tracked-links error:", err);
 		return c.json({ success: false, error: "Internal server error" }, 500);
@@ -104,11 +92,13 @@ trackedLinks.post("/api/tracked-links", validateJson(CreateTrackedLinkSchema), a
 trackedLinks.delete("/api/tracked-links/:id", async (c) => {
 	try {
 		const id = c.req.param("id");
-		const link = await getTrackedLinkById(c.env.DB, id);
+		const db = c.get("db");
+		const linkRepo = createTrackedLinkRepository(db);
+		const link = await linkRepo.findById(id);
 		if (!link) {
 			return c.json({ success: false, error: "Tracked link not found" }, 404);
 		}
-		await deleteTrackedLink(c.env.DB, id);
+		await linkRepo.delete(id);
 		return c.json({ success: true, data: null });
 	} catch (err) {
 		console.error("DELETE /api/tracked-links/:id error:", err);
@@ -122,10 +112,14 @@ trackedLinks.get("/t/:linkId", async (c) => {
 	const lineUserId = c.req.query("lu") ?? null;
 	let friendId = c.req.query("f") ?? null;
 
-	// Look up the link first
-	const link = await getTrackedLinkById(c.env.DB, linkId);
+	const db = c.get("db");
+	const linkRepo = createTrackedLinkRepository(db);
 
-	if (!link?.is_active) {
+	// Look up the link first
+	const link = await linkRepo.findById(linkId);
+	const linkRecord = link as unknown as Record<string, unknown>;
+
+	if (!(link && (linkRecord.isActive ?? linkRecord.is_active))) {
 		return c.json({ success: false, error: "Link not found" }, 404);
 	}
 
@@ -140,7 +134,8 @@ trackedLinks.get("/t/:linkId", async (c) => {
 
 	// Resolve friendId from LINE user ID if provided
 	if (!friendId && lineUserId) {
-		const friend = await getFriendByLineUserId(c.env.DB, lineUserId);
+		const friendRepo = createFriendRepository(db);
+		const friend = await friendRepo.findByLineUserId(lineUserId as LineUserId);
 		if (friend) {
 			friendId = friend.id;
 		}
@@ -152,18 +147,22 @@ trackedLinks.get("/t/:linkId", async (c) => {
 		(async () => {
 			try {
 				// Record the click
-				await recordLinkClick(c.env.DB, linkId, friendId);
+				await linkRepo.recordClick(linkId, friendId);
 
 				// Run automatic actions if a friend is identified
 				if (friendId) {
 					const actions: Promise<unknown>[] = [];
+					const tagId = linkRecord.tagId ?? linkRecord.tag_id;
+					const scenarioId = linkRecord.scenarioId ?? linkRecord.scenario_id;
 
-					if (link.tag_id) {
-						actions.push(addTagToFriend(c.env.DB, friendId, link.tag_id));
+					if (tagId) {
+						const tagRepo = createTagRepository(db);
+						actions.push(tagRepo.assignToFriend(friendId as FriendId, tagId as TagId));
 					}
 
-					if (link.scenario_id) {
-						actions.push(enrollFriendInScenario(c.env.DB, friendId, link.scenario_id));
+					if (scenarioId) {
+						const scenarioRepo = createScenarioRepository(db);
+						actions.push(scenarioRepo.enrollFriend(friendId as FriendId, scenarioId as ScenarioId, null));
 					}
 
 					if (actions.length > 0) {
@@ -176,7 +175,7 @@ trackedLinks.get("/t/:linkId", async (c) => {
 		})(),
 	);
 
-	return c.redirect(link.original_url, 302);
+	return c.redirect((linkRecord.originalUrl ?? linkRecord.original_url) as string, 302);
 });
 
 export { trackedLinks };

@@ -1,11 +1,4 @@
-import {
-	createNotificationRule,
-	deleteNotificationRule,
-	getNotificationRuleById,
-	getNotificationRules,
-	getNotifications,
-	updateNotificationRule,
-} from "@line-crm/db";
+import { createNotificationRepository } from "@line-crm/db";
 import { Hono } from "hono";
 import type { Env } from "../index.js";
 
@@ -15,32 +8,22 @@ const notifications = new Hono<Env>();
 
 notifications.get("/api/notifications/rules", async (c) => {
 	try {
+		const db = c.get("db");
+		const notifRepo = createNotificationRepository(db);
 		const lineAccountId = c.req.query("lineAccountId");
-		let items: Awaited<ReturnType<typeof getNotificationRules>> | undefined;
+		let items: Awaited<ReturnType<typeof notifRepo.listRules>>;
 		if (lineAccountId) {
-			// TODO: Migrate to notification_rules repository once available (no Drizzle repo exists for notification_rules)
+			// TODO: Migrate to notification_rules repository once listRules() supports lineAccountId filtering
 			const result = await c.env.DB.prepare(
 				"SELECT * FROM notification_rules WHERE line_account_id = ? ORDER BY created_at DESC",
 			)
 				.bind(lineAccountId)
 				.all();
-			items = result.results as unknown as Awaited<ReturnType<typeof getNotificationRules>>;
+			items = result.results as unknown as Awaited<ReturnType<typeof notifRepo.listRules>>;
 		} else {
-			items = await getNotificationRules(c.env.DB);
+			items = await notifRepo.listRules();
 		}
-		return c.json({
-			success: true,
-			data: items.map((r) => ({
-				id: r.id,
-				name: r.name,
-				eventType: r.event_type,
-				conditions: JSON.parse(r.conditions),
-				channels: JSON.parse(r.channels),
-				isActive: Boolean(r.is_active),
-				createdAt: r.created_at,
-				updatedAt: r.updated_at,
-			})),
-		});
+		return c.json({ success: true, data: items });
 	} catch (err) {
 		console.error("GET /api/notifications/rules error:", err);
 		return c.json({ success: false, error: "Internal server error" }, 500);
@@ -49,20 +32,11 @@ notifications.get("/api/notifications/rules", async (c) => {
 
 notifications.get("/api/notifications/rules/:id", async (c) => {
 	try {
-		const item = await getNotificationRuleById(c.env.DB, c.req.param("id"));
+		const db = c.get("db");
+		const notifRepo = createNotificationRepository(db);
+		const item = await notifRepo.findRuleById(c.req.param("id"));
 		if (!item) return c.json({ success: false, error: "Not found" }, 404);
-		return c.json({
-			success: true,
-			data: {
-				id: item.id,
-				name: item.name,
-				eventType: item.event_type,
-				conditions: JSON.parse(item.conditions),
-				channels: JSON.parse(item.channels),
-				isActive: Boolean(item.is_active),
-				createdAt: item.created_at,
-			},
-		});
+		return c.json({ success: true, data: item });
 	} catch (err) {
 		console.error("GET /api/notifications/rules/:id error:", err);
 		return c.json({ success: false, error: "Internal server error" }, 500);
@@ -79,20 +53,11 @@ notifications.post("/api/notifications/rules", async (c) => {
 		}>();
 		if (!(body.name && body.eventType))
 			return c.json({ success: false, error: "name and eventType are required" }, 400);
-		const item = await createNotificationRule(c.env.DB, body);
-		return c.json(
-			{
-				success: true,
-				data: {
-					id: item.id,
-					name: item.name,
-					eventType: item.event_type,
-					channels: JSON.parse(item.channels),
-					createdAt: item.created_at,
-				},
-			},
-			201,
-		);
+		const db = c.get("db");
+		const notifRepo = createNotificationRepository(db);
+		const id = await notifRepo.createRule(body);
+		const item = await notifRepo.findRuleById(id);
+		return c.json({ success: true, data: item }, 201);
 	} catch (err) {
 		console.error("POST /api/notifications/rules error:", err);
 		return c.json({ success: false, error: "Internal server error" }, 500);
@@ -103,19 +68,12 @@ notifications.put("/api/notifications/rules/:id", async (c) => {
 	try {
 		const id = c.req.param("id");
 		const body = await c.req.json();
-		await updateNotificationRule(c.env.DB, id, body);
-		const updated = await getNotificationRuleById(c.env.DB, id);
+		const db = c.get("db");
+		const notifRepo = createNotificationRepository(db);
+		await notifRepo.updateRule(id, body);
+		const updated = await notifRepo.findRuleById(id);
 		if (!updated) return c.json({ success: false, error: "Not found" }, 404);
-		return c.json({
-			success: true,
-			data: {
-				id: updated.id,
-				name: updated.name,
-				eventType: updated.event_type,
-				channels: JSON.parse(updated.channels),
-				isActive: Boolean(updated.is_active),
-			},
-		});
+		return c.json({ success: true, data: updated });
 	} catch (err) {
 		console.error("PUT /api/notifications/rules/:id error:", err);
 		return c.json({ success: false, error: "Internal server error" }, 500);
@@ -124,7 +82,9 @@ notifications.put("/api/notifications/rules/:id", async (c) => {
 
 notifications.delete("/api/notifications/rules/:id", async (c) => {
 	try {
-		await deleteNotificationRule(c.env.DB, c.req.param("id"));
+		const db = c.get("db");
+		const notifRepo = createNotificationRepository(db);
+		await notifRepo.deleteRule(c.req.param("id"));
 		return c.json({ success: true, data: null });
 	} catch (err) {
 		console.error("DELETE /api/notifications/rules/:id error:", err);
@@ -139,7 +99,10 @@ notifications.get("/api/notifications", async (c) => {
 		const status = c.req.query("status") ?? undefined;
 		const limit = Number(c.req.query("limit") ?? "100");
 		const lineAccountId = c.req.query("lineAccountId") ?? undefined;
-		let items: Awaited<ReturnType<typeof getNotifications>> | undefined;
+		const db = c.get("db");
+		const notifRepo = createNotificationRepository(db);
+
+		let items: Awaited<ReturnType<typeof notifRepo.listNotifications>>;
 		if (lineAccountId) {
 			// TODO: Migrate to notifications repository once available (no Drizzle repo exists for notifications)
 			const conditions: string[] = ["line_account_id = ?"];
@@ -154,24 +117,11 @@ notifications.get("/api/notifications", async (c) => {
 			)
 				.bind(...bindings)
 				.all();
-			items = result.results as unknown as Awaited<ReturnType<typeof getNotifications>>;
+			items = result.results as unknown as Awaited<ReturnType<typeof notifRepo.listNotifications>>;
 		} else {
-			items = await getNotifications(c.env.DB, { status, limit });
+			items = await notifRepo.listNotifications({ status, limit });
 		}
-		return c.json({
-			success: true,
-			data: items.map((n) => ({
-				id: n.id,
-				ruleId: n.rule_id,
-				eventType: n.event_type,
-				title: n.title,
-				body: n.body,
-				channel: n.channel,
-				status: n.status,
-				metadata: n.metadata ? JSON.parse(n.metadata) : null,
-				createdAt: n.created_at,
-			})),
-		});
+		return c.json({ success: true, data: items });
 	} catch (err) {
 		console.error("GET /api/notifications error:", err);
 		return c.json({ success: false, error: "Internal server error" }, 500);

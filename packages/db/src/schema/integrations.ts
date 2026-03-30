@@ -3,6 +3,42 @@ import { boolean, id, jsonText, timestamps } from "./_common.js";
 import { lineAccounts } from "./admin.js";
 import { friends } from "./crm.js";
 
+// =============================================================================
+// Forms — Survey / questionnaire system
+// =============================================================================
+
+export const forms = sqliteTable("forms", {
+	id: id(),
+	name: text("name").notNull(),
+	description: text("description"),
+	fields: text("fields").notNull(), // JSON string of FormField[]
+	onSubmitTagId: text("on_submit_tag_id"),
+	onSubmitScenarioId: text("on_submit_scenario_id"),
+	saveToMetadata: boolean("save_to_metadata").notNull().default(true),
+	isActive: boolean("is_active").notNull().default(true),
+	submitCount: integer("submit_count").notNull().default(0),
+	...timestamps,
+});
+
+export const formSubmissions = sqliteTable(
+	"form_submissions",
+	{
+		id: id(),
+		formId: text("form_id")
+			.notNull()
+			.references(() => forms.id),
+		friendId: text("friend_id").references(() => friends.id),
+		data: text("data").notNull(), // JSON string
+		createdAt: text("created_at")
+			.notNull()
+			.$defaultFn(() => new Date().toISOString()),
+	},
+	(table) => [
+		index("idx_form_submissions_form").on(table.formId),
+		index("idx_form_submissions_friend").on(table.friendId),
+	],
+);
+
 // Webhooks
 export const incomingWebhooks = sqliteTable("incoming_webhooks", {
 	id: id(),
@@ -262,3 +298,70 @@ export const accountMigrations = sqliteTable("account_migrations", {
 		.$defaultFn(() => new Date().toISOString()),
 	completedAt: text("completed_at"),
 });
+
+// Tracked Links
+export const trackedLinks = sqliteTable("tracked_links", {
+	id: id(),
+	name: text("name").notNull(),
+	originalUrl: text("original_url").notNull(),
+	tagId: text("tag_id"),
+	scenarioId: text("scenario_id"),
+	isActive: boolean("is_active").notNull().default(true),
+	clickCount: integer("click_count").notNull().default(0),
+	...timestamps,
+});
+
+export const linkClicks = sqliteTable(
+	"link_clicks",
+	{
+		id: id(),
+		trackedLinkId: text("tracked_link_id")
+			.notNull()
+			.references(() => trackedLinks.id),
+		friendId: text("friend_id").references(() => friends.id),
+		clickedAt: text("clicked_at")
+			.notNull()
+			.$defaultFn(() => new Date().toISOString()),
+	},
+	(table) => [index("idx_link_clicks_tracked_link").on(table.trackedLinkId)],
+);
+
+// Entry Routes
+export const entryRoutes = sqliteTable("entry_routes", {
+	id: id(),
+	refCode: text("ref_code").unique().notNull(),
+	name: text("name").notNull(),
+	tagId: text("tag_id"),
+	scenarioId: text("scenario_id"),
+	redirectUrl: text("redirect_url"),
+	isActive: boolean("is_active").notNull().default(true),
+	...timestamps,
+});
+
+export const refTracking = sqliteTable(
+	"ref_tracking",
+	{
+		id: id(),
+		refCode: text("ref_code").notNull(),
+		friendId: text("friend_id").references(() => friends.id),
+		entryRouteId: text("entry_route_id").references(() => entryRoutes.id),
+		sourceUrl: text("source_url"),
+		fbclid: text("fbclid"),
+		gclid: text("gclid"),
+		twclid: text("twclid"),
+		ttclid: text("ttclid"),
+		yclid: text("yclid"),
+		utmSource: text("utm_source"),
+		utmMedium: text("utm_medium"),
+		utmCampaign: text("utm_campaign"),
+		userAgent: text("user_agent"),
+		ipAddress: text("ip_address"),
+		createdAt: text("created_at")
+			.notNull()
+			.$defaultFn(() => new Date().toISOString()),
+	},
+	(table) => [
+		index("idx_ref_tracking_ref_code").on(table.refCode),
+		index("idx_ref_tracking_friend").on(table.friendId),
+	],
+);

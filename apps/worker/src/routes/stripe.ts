@@ -1,5 +1,5 @@
 import { MIDDLEWARE_LIMITS } from "@line-crm/contracts";
-import { createStripeEvent, createTagRepository, getStripeEventByStripeId, getStripeEvents } from "@line-crm/db";
+import { createScoringRepository, createStripeEventRepository, createTagRepository } from "@line-crm/db";
 import type { FriendId, TagId } from "@line-crm/domain";
 import { Hono } from "hono";
 import { timeout } from "hono/timeout";
@@ -29,7 +29,9 @@ stripe.get("/api/integrations/stripe/events", async (c) => {
 		const friendId = c.req.query("friendId") ?? undefined;
 		const eventType = c.req.query("eventType") ?? undefined;
 		const limit = Number(c.req.query("limit") ?? "100");
-		const items = await getStripeEvents(c.env.DB, { friendId, eventType, limit });
+		const drizzleDb = c.get("db");
+		const stripeRepo = createStripeEventRepository(drizzleDb);
+		const items = await stripeRepo.list({ friendId, eventType, limit });
 		return c.json({
 			success: true,
 			data: items.map((e) => ({
@@ -122,8 +124,11 @@ stripe.post("/api/integrations/stripe/webhook", timeout(MIDDLEWARE_LIMITS.stripe
 			body = await c.req.json<StripeWebhookBody>();
 		}
 
+		const drizzleDb = c.get("db");
+		const stripeRepo = createStripeEventRepository(drizzleDb);
+
 		// 冪等性チェック
-		const existing = await getStripeEventByStripeId(c.env.DB, body.id);
+		const existing = await stripeRepo.findByStripeId(body.id);
 		if (existing) {
 			return c.json({ success: true, data: { message: "Already processed" } });
 		}
@@ -135,7 +140,7 @@ stripe.post("/api/integrations/stripe/webhook", timeout(MIDDLEWARE_LIMITS.stripe
 		const friendId = obj.metadata?.line_friend_id ?? null;
 
 		// イベントを記録
-		const event = await createStripeEvent(db, {
+		const eventId = await stripeRepo.create({
 			stripeEventId: body.id,
 			eventType: body.type,
 			friendId: friendId ?? undefined,
@@ -146,11 +151,10 @@ stripe.post("/api/integrations/stripe/webhook", timeout(MIDDLEWARE_LIMITS.stripe
 
 		// 決済成功時の自動処理
 		if (body.type === "payment_intent.succeeded" && friendId) {
-			const { applyScoring } = await import("@line-crm/db");
-			await applyScoring(db, friendId, "purchase");
+			const scoringRepo = createScoringRepository(drizzleDb);
+			await scoringRepo.applyScore(friendId as FriendId, "purchase");
 
 			// 自動タグ付け（product_idベース）
-			const drizzleDb = c.get("db");
 			const tagRepo = createTagRepository(drizzleDb);
 
 			const productId = obj.metadata?.product_id;
@@ -175,7 +179,6 @@ stripe.post("/api/integrations/stripe/webhook", timeout(MIDDLEWARE_LIMITS.stripe
 
 		// サブスクリプションイベント処理
 		if (body.type === "customer.subscription.deleted" && friendId) {
-			const drizzleDb = c.get("db");
 			const tagRepo = createTagRepository(drizzleDb);
 			// TODO: Migrate to tagRepo.findByName() once available
 			const cancelledTag = await db
@@ -188,12 +191,7 @@ stripe.post("/api/integrations/stripe/webhook", timeout(MIDDLEWARE_LIMITS.stripe
 
 		return c.json({
 			success: true,
-			data: {
-				id: event.id,
-				stripeEventId: event.stripe_event_id,
-				eventType: event.event_type,
-				processedAt: event.processed_at,
-			},
+			data: { id: eventId },
 		});
 	} catch (err) {
 		console.error("POST /api/integrations/stripe/webhook error:", err);

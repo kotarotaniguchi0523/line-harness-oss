@@ -1,15 +1,10 @@
 import {
-	advanceFriendScenario,
-	completeFriendScenario,
 	createDb,
 	createFriendRepository,
+	createScenarioRepository,
 	createTagRepository,
 	DateTime,
-	getFriendById,
-	getFriendScenariosDueForDelivery,
-	getScenarioSteps,
 } from "@line-crm/db";
-import { messagesLog } from "@line-crm/db/schema";
 import type { FriendId } from "@line-crm/domain";
 import type { LineClient } from "@line-crm/line-sdk";
 import { buildMessage } from "./message-builder.js";
@@ -138,8 +133,10 @@ export async function processStepDeliveries(db: D1Database, lineClient: LineClie
 	const jstHour = new Date(Date.now() + 9 * 60 * 60_000).getUTCHours();
 	if (jstHour < DEFAULT_START_HOUR || jstHour >= DEFAULT_END_HOUR) return;
 
-	const now = DateTime.now().toISO();
-	const dueFriendScenarios = await getFriendScenariosDueForDelivery(db, now);
+	const drizzle = createDb(db);
+	const scenarioRepo = createScenarioRepository(drizzle);
+	const _now = DateTime.now().toISO();
+	const dueFriendScenarios = await scenarioRepo.getDueDeliveries();
 
 	for (let i = 0; i < dueFriendScenarios.length; i++) {
 		const fs = dueFriendScenarios[i];
@@ -169,46 +166,53 @@ async function processSingleDelivery(
 	},
 	workerUrl?: string,
 ): Promise<void> {
+	const drizzle = createDb(db);
+	const friendRepo = createFriendRepository(drizzle);
+	const scenarioRepo = createScenarioRepository(drizzle);
+
 	// Get friend first to read preferred delivery hour from metadata
-	const friend = await getFriendById(db, fs.friend_id);
-	if (!friend?.is_following) {
-		await completeFriendScenario(db, fs.id);
+	const friend = await friendRepo.findById(fs.friend_id as FriendId);
+	if (!friend?.isFollowing) {
+		await scenarioRepo.completeFriendScenario(fs.id);
 		return;
 	}
-	const metadata = JSON.parse((friend as { metadata?: string }).metadata || "{}") as Record<string, unknown>;
+	const metadata = JSON.parse(friend.metadata || "{}") as Record<string, unknown>;
 	const preferredHour = typeof metadata.preferred_hour === "number" ? metadata.preferred_hour : undefined;
 
 	// Get all steps for this scenario
-	const steps = await getScenarioSteps(db, fs.scenario_id);
+	const scenario = await scenarioRepo.findById(fs.scenario_id as import("@line-crm/domain").ScenarioId);
+	const steps = scenario?.steps ?? [];
 	if (steps.length === 0) {
-		await completeFriendScenario(db, fs.id);
+		await scenarioRepo.completeFriendScenario(fs.id);
 		return;
 	}
 
-	// Steps are sorted by step_order but may not be contiguous (e.g., 1, 3, 5 after deletions).
-	// Find the next step whose step_order > current_step_order.
-	const currentStep = steps.find((s) => s.step_order > fs.current_step_order);
+	// Steps are sorted by stepOrder but may not be contiguous (e.g., 1, 3, 5 after deletions).
+	// Find the next step whose stepOrder > current_step_order.
+	const currentStep = steps.find((s) => s.stepOrder > fs.current_step_order);
 
 	if (!currentStep) {
-		await completeFriendScenario(db, fs.id);
+		await scenarioRepo.completeFriendScenario(fs.id);
 		return;
 	}
 
 	// Check step condition before sending
-	if (currentStep.condition_type) {
-		const conditionMet = await evaluateCondition(db, fs.friend_id, currentStep);
+	if (currentStep.conditionType) {
+		const conditionMet = await evaluateCondition(db, fs.friend_id, {
+			condition_type: currentStep.conditionType,
+			condition_value: currentStep.conditionValue ?? null,
+		});
 		if (!conditionMet) {
-			if (currentStep.next_step_on_false !== null && currentStep.next_step_on_false !== undefined) {
-				const jumpStep = steps.find((s) => s.step_order === currentStep.next_step_on_false);
+			if (currentStep.nextStepOnFalse !== null && currentStep.nextStepOnFalse !== undefined) {
+				const jumpStep = steps.find((s) => s.stepOrder === currentStep.nextStepOnFalse);
 				if (jumpStep) {
 					const nextDate = new Date(Date.now() + 9 * 60 * 60_000);
-					nextDate.setMinutes(nextDate.getMinutes() + jumpStep.delay_minutes);
+					nextDate.setMinutes(nextDate.getMinutes() + jumpStep.delayMinutes);
 					const windowedDate = enforceDeliveryWindow(nextDate, preferredHour);
 					const jitteredDate = jitterDeliveryTime(windowedDate);
-					await advanceFriendScenario(
-						db,
+					await scenarioRepo.advanceFriendScenario(
 						fs.id,
-						currentStep.step_order,
+						currentStep.stepOrder,
 						`${jitteredDate.toISOString().slice(0, -1)}+09:00`,
 					);
 					return;
@@ -218,45 +222,41 @@ async function processSingleDelivery(
 			if (nextIndex < steps.length) {
 				const nextStep = steps[nextIndex];
 				const nextDate = new Date(Date.now() + 9 * 60 * 60_000);
-				nextDate.setMinutes(nextDate.getMinutes() + nextStep.delay_minutes);
+				nextDate.setMinutes(nextDate.getMinutes() + nextStep.delayMinutes);
 				const windowedDate = enforceDeliveryWindow(nextDate, preferredHour);
 				const jitteredDate = jitterDeliveryTime(windowedDate);
-				await advanceFriendScenario(
-					db,
+				await scenarioRepo.advanceFriendScenario(
 					fs.id,
-					currentStep.step_order,
+					currentStep.stepOrder,
 					`${jitteredDate.toISOString().slice(0, -1)}+09:00`,
 				);
 			} else {
-				await completeFriendScenario(db, fs.id);
+				await scenarioRepo.completeFriendScenario(fs.id);
 			}
 			return;
 		}
 	}
 
 	// Expand template variables ({{name}}, {{uid}}, {{auth_url:CHANNEL_ID}}, etc.)
-	const expandedContent = expandVariables(currentStep.message_content, friend, workerUrl);
+	const expandedContent = expandVariables(currentStep.messageContent, friend, workerUrl);
 	// Auto-wrap URLs with tracking links (text with URLs → Flex with button)
-	let trackedType: string = currentStep.message_type;
+	let trackedType: string = currentStep.messageType;
 	let trackedContent = expandedContent;
 	if (workerUrl) {
 		const { autoTrackContent } = await import("./auto-track.js");
-		const tracked = await autoTrackContent(db, currentStep.message_type, expandedContent, workerUrl);
+		const tracked = await autoTrackContent(db, currentStep.messageType, expandedContent, workerUrl);
 		trackedType = tracked.messageType;
 		trackedContent = tracked.content;
 	}
 	const message = buildMessage(trackedType, trackedContent);
-	await lineClient.pushMessage(friend.line_user_id, [message]);
+	await lineClient.pushMessage(friend.lineUserId, [message]);
 
 	// Log outgoing message
-	const drizzle = createDb(db);
-	await drizzle.insert(messagesLog).values({
-		id: crypto.randomUUID(),
+	await friendRepo.logMessage({
 		friendId: friend.id,
 		direction: "outgoing",
-		messageType: currentStep.message_type,
-		content: currentStep.message_content,
-		broadcastId: null,
+		messageType: currentStep.messageType,
+		content: currentStep.messageContent,
 		scenarioStepId: currentStep.id,
 	});
 
@@ -267,13 +267,17 @@ async function processSingleDelivery(
 	if (nextStep) {
 		// Schedule next delivery with stealth jitter + delivery window enforcement
 		const nextDeliveryDate = new Date(Date.now() + 9 * 60 * 60_000);
-		nextDeliveryDate.setMinutes(nextDeliveryDate.getMinutes() + nextStep.delay_minutes);
+		nextDeliveryDate.setMinutes(nextDeliveryDate.getMinutes() + nextStep.delayMinutes);
 		const windowedDate = enforceDeliveryWindow(nextDeliveryDate, preferredHour);
 		const jitteredDate = jitterDeliveryTime(windowedDate);
-		await advanceFriendScenario(db, fs.id, currentStep.step_order, `${jitteredDate.toISOString().slice(0, -1)}+09:00`);
+		await scenarioRepo.advanceFriendScenario(
+			fs.id,
+			currentStep.stepOrder,
+			`${jitteredDate.toISOString().slice(0, -1)}+09:00`,
+		);
 	} else {
 		// This was the last step
-		await completeFriendScenario(db, fs.id);
+		await scenarioRepo.completeFriendScenario(fs.id);
 	}
 }
 

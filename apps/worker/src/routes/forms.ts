@@ -5,59 +5,27 @@ import {
 	type UpdateFormRequest,
 	UpdateFormSchema,
 } from "@line-crm/contracts";
-import type { Form as DbForm, FormSubmission as DbFormSubmission } from "@line-crm/db";
 import {
-	addTagToFriend,
-	createForm,
-	createFormSubmission,
-	DateTime,
-	deleteForm,
-	enrollFriendInScenario,
-	getFormById,
-	getFormSubmissions,
-	getForms,
-	getFriendById,
-	getFriendByLineUserId,
-	updateForm,
+	createFormRepository,
+	createFriendRepository,
+	createLineAccountRepository,
+	createScenarioRepository,
+	createTagRepository,
 } from "@line-crm/db";
+import type { FriendId, LineUserId, ScenarioId, TagId } from "@line-crm/domain";
 import { Hono } from "hono";
 import type { Env } from "../index.js";
 import { validateJson } from "../middleware/validate.js";
 
 const forms = new Hono<Env>();
 
-function serializeForm(row: DbForm) {
-	return {
-		id: row.id,
-		name: row.name,
-		description: row.description,
-		fields: JSON.parse(row.fields || "[]") as unknown[],
-		onSubmitTagId: row.on_submit_tag_id,
-		onSubmitScenarioId: row.on_submit_scenario_id,
-		saveToMetadata: Boolean(row.save_to_metadata),
-		isActive: Boolean(row.is_active),
-		submitCount: row.submit_count,
-		createdAt: row.created_at,
-		updatedAt: row.updated_at,
-	};
-}
-
-function serializeSubmission(row: DbFormSubmission & { friend_name?: string | null }) {
-	return {
-		id: row.id,
-		formId: row.form_id,
-		friendId: row.friend_id,
-		friendName: row.friend_name || null,
-		data: JSON.parse(row.data || "{}") as Record<string, unknown>,
-		createdAt: row.created_at,
-	};
-}
-
 // GET /api/forms — list all forms
 forms.get("/api/forms", async (c) => {
 	try {
-		const items = await getForms(c.env.DB);
-		return c.json({ success: true, data: items.map(serializeForm) });
+		const db = c.get("db");
+		const formRepo = createFormRepository(db);
+		const items = await formRepo.list();
+		return c.json({ success: true, data: items });
 	} catch (err) {
 		console.error("GET /api/forms error:", err);
 		return c.json({ success: false, error: "Internal server error" }, 500);
@@ -68,11 +36,13 @@ forms.get("/api/forms", async (c) => {
 forms.get("/api/forms/:id", async (c) => {
 	try {
 		const id = c.req.param("id");
-		const form = await getFormById(c.env.DB, id);
+		const db = c.get("db");
+		const formRepo = createFormRepository(db);
+		const form = await formRepo.findById(id);
 		if (!form) {
 			return c.json({ success: false, error: "Form not found" }, 404);
 		}
-		return c.json({ success: true, data: serializeForm(form) });
+		return c.json({ success: true, data: form });
 	} catch (err) {
 		console.error("GET /api/forms/:id error:", err);
 		return c.json({ success: false, error: "Internal server error" }, 500);
@@ -84,7 +54,9 @@ forms.post("/api/forms", validateJson(CreateFormSchema), async (c) => {
 	try {
 		const body: CreateFormRequest = c.req.valid("json");
 
-		const form = await createForm(c.env.DB, {
+		const db = c.get("db");
+		const formRepo = createFormRepository(db);
+		const formId = await formRepo.create({
 			name: body.name,
 			description: body.description ?? null,
 			fields: JSON.stringify(body.fields ?? []),
@@ -93,7 +65,8 @@ forms.post("/api/forms", validateJson(CreateFormSchema), async (c) => {
 			saveToMetadata: body.saveToMetadata,
 		});
 
-		return c.json({ success: true, data: serializeForm(form) }, 201);
+		const form = await formRepo.findById(formId);
+		return c.json({ success: true, data: form }, 201);
 	} catch (err) {
 		console.error("POST /api/forms error:", err);
 		return c.json({ success: false, error: "Internal server error" }, 500);
@@ -106,7 +79,9 @@ forms.put("/api/forms/:id", validateJson(UpdateFormSchema), async (c) => {
 		const id = c.req.param("id");
 		const body: UpdateFormRequest = c.req.valid("json");
 
-		const updated = await updateForm(c.env.DB, id, {
+		const db = c.get("db");
+		const formRepo = createFormRepository(db);
+		await formRepo.update(id, {
 			name: body.name,
 			description: body.description,
 			fields: body.fields !== undefined ? JSON.stringify(body.fields) : undefined,
@@ -116,11 +91,12 @@ forms.put("/api/forms/:id", validateJson(UpdateFormSchema), async (c) => {
 			isActive: body.isActive,
 		});
 
+		const updated = await formRepo.findById(id);
 		if (!updated) {
 			return c.json({ success: false, error: "Form not found" }, 404);
 		}
 
-		return c.json({ success: true, data: serializeForm(updated) });
+		return c.json({ success: true, data: updated });
 	} catch (err) {
 		console.error("PUT /api/forms/:id error:", err);
 		return c.json({ success: false, error: "Internal server error" }, 500);
@@ -131,11 +107,13 @@ forms.put("/api/forms/:id", validateJson(UpdateFormSchema), async (c) => {
 forms.delete("/api/forms/:id", async (c) => {
 	try {
 		const id = c.req.param("id");
-		const form = await getFormById(c.env.DB, id);
+		const db = c.get("db");
+		const formRepo = createFormRepository(db);
+		const form = await formRepo.findById(id);
 		if (!form) {
 			return c.json({ success: false, error: "Form not found" }, 404);
 		}
-		await deleteForm(c.env.DB, id);
+		await formRepo.delete(id);
 		return c.json({ success: true, data: null });
 	} catch (err) {
 		console.error("DELETE /api/forms/:id error:", err);
@@ -147,12 +125,14 @@ forms.delete("/api/forms/:id", async (c) => {
 forms.get("/api/forms/:id/submissions", async (c) => {
 	try {
 		const id = c.req.param("id");
-		const form = await getFormById(c.env.DB, id);
+		const db = c.get("db");
+		const formRepo = createFormRepository(db);
+		const form = await formRepo.findById(id);
 		if (!form) {
 			return c.json({ success: false, error: "Form not found" }, 404);
 		}
-		const submissions = await getFormSubmissions(c.env.DB, id);
-		return c.json({ success: true, data: submissions.map(serializeSubmission) });
+		const submissions = await formRepo.getSubmissions(id);
+		return c.json({ success: true, data: submissions });
 	} catch (err) {
 		console.error("GET /api/forms/:id/submissions error:", err);
 		return c.json({ success: false, error: "Internal server error" }, 500);
@@ -165,43 +145,45 @@ forms.get("/api/forms/:id/submissions", async (c) => {
  */
 async function executeFormSideEffects(
 	db: D1Database,
-	form: NonNullable<Awaited<ReturnType<typeof getFormById>>>,
+	form: Record<string, unknown>,
 	friendId: string,
 	submissionData: Record<string, unknown>,
 	lineChannelAccessToken: string,
+	drizzleDb: import("@line-crm/db").Database,
 ): Promise<void> {
-	const now = DateTime.now().toISO();
 	const sideEffects: Promise<unknown>[] = [];
+	const friendRepo = createFriendRepository(drizzleDb);
 
 	// Save response data to friend's metadata
-	if (form.save_to_metadata) {
+	const saveToMeta = form.save_to_metadata ?? form.saveToMetadata;
+	if (saveToMeta) {
 		sideEffects.push(
 			(async () => {
-				const friend = await getFriendById(db, friendId);
+				const friend = await friendRepo.findById(friendId as FriendId);
 				if (!friend) return;
 				const existing = JSON.parse(friend.metadata || "{}") as Record<string, unknown>;
 				const merged = { ...existing, ...submissionData };
-				// TODO: Migrate to createFriendRepository once updateMetadata() method is available
-				await db
-					.prepare("UPDATE friends SET metadata = ?, updated_at = ? WHERE id = ?")
-					.bind(JSON.stringify(merged), now, friendId)
-					.run();
+				await friendRepo.updateMetadata(friendId as FriendId, merged);
 			})(),
 		);
 	}
 
 	// Add tag
-	if (form.on_submit_tag_id) {
-		sideEffects.push(addTagToFriend(db, friendId, form.on_submit_tag_id));
+	const onSubmitTagId = (form.on_submit_tag_id ?? form.onSubmitTagId) as string | null;
+	if (onSubmitTagId) {
+		const tagRepo = createTagRepository(drizzleDb);
+		sideEffects.push(tagRepo.assignToFriend(friendId as FriendId, onSubmitTagId as TagId));
 	}
 
 	// Enroll in scenario
-	if (form.on_submit_scenario_id) {
-		sideEffects.push(enrollFriendInScenario(db, friendId, form.on_submit_scenario_id));
+	const onSubmitScenarioId = (form.on_submit_scenario_id ?? form.onSubmitScenarioId) as string | null;
+	if (onSubmitScenarioId) {
+		const scenarioRepo = createScenarioRepository(drizzleDb);
+		sideEffects.push(scenarioRepo.enrollFriend(friendId as FriendId, onSubmitScenarioId as ScenarioId, null));
 	}
 
 	// Send confirmation message with submitted data back to user
-	sideEffects.push(sendFormConfirmationMessage(db, form, friendId, submissionData, lineChannelAccessToken));
+	sideEffects.push(sendFormConfirmationMessage(db, form, friendId, submissionData, lineChannelAccessToken, drizzleDb));
 
 	const results = await Promise.allSettled(sideEffects);
 	for (const r of results) {
@@ -213,50 +195,51 @@ async function executeFormSideEffects(
  * Send a Flex confirmation message with the submitted form answers back to the user via LINE push.
  */
 async function sendFormConfirmationMessage(
-	db: D1Database,
-	form: NonNullable<Awaited<ReturnType<typeof getFormById>>>,
+	_db: D1Database,
+	form: Record<string, unknown>,
 	friendId: string,
 	submissionData: Record<string, unknown>,
 	lineChannelAccessToken: string,
+	drizzleDb: import("@line-crm/db").Database,
 ): Promise<void> {
 	console.log("Form reply: starting for friendId", friendId);
-	const friend = await getFriendById(db, friendId);
-	if (!friend?.line_user_id) {
+	const friendRepo = createFriendRepository(drizzleDb);
+	const friend = await friendRepo.findById(friendId as FriendId);
+	if (!friend?.lineUserId) {
 		console.log("Form reply: no line_user_id");
 		return;
 	}
-	console.log("Form reply: sending to", friend.line_user_id);
+	console.log("Form reply: sending to", friend.lineUserId);
 	const { LineClient } = await import("@line-crm/line-sdk");
 	// Resolve access token from friend's account (multi-account support)
 	let accessToken = lineChannelAccessToken;
-	if ((friend as unknown as Record<string, unknown>).line_account_id) {
-		const { getLineAccountById } = await import("@line-crm/db");
-		const account = await getLineAccountById(
-			db,
-			(friend as unknown as Record<string, unknown>).line_account_id as string,
-		);
-		if (account) accessToken = account.channel_access_token;
+	if (friend.lineAccountId) {
+		const accountRepo = createLineAccountRepository(drizzleDb);
+		const account = await accountRepo.findById(friend.lineAccountId as import("@line-crm/domain").LineAccountId);
+		if (account) accessToken = (account as unknown as Record<string, unknown>).channelAccessToken as string;
 	}
 	const lineClient = new LineClient(accessToken);
 
-	const flex = buildConfirmationFlex(form, friend, submissionData);
+	const flex = buildConfirmationFlex(form, { display_name: friend.displayName }, submissionData);
 
 	const { buildMessage } = await import("../services/step-delivery.js");
-	await lineClient.pushMessage(friend.line_user_id, [buildMessage("flex", JSON.stringify(flex))]);
+	await lineClient.pushMessage(friend.lineUserId, [buildMessage("flex", JSON.stringify(flex))]);
 }
 
 /**
  * Build a Flex Bubble showing the submitted form answers.
  */
 function buildConfirmationFlex(
-	form: NonNullable<Awaited<ReturnType<typeof getFormById>>>,
+	form: Record<string, unknown>,
 	friend: { display_name: string | null },
 	submissionData: Record<string, unknown>,
 ) {
 	const entries = Object.entries(submissionData);
+	const rawFields = form.fields;
+	const parsedFields = typeof rawFields === "string" ? rawFields : null;
 	const answerRows = entries.map(([key, value]) => {
-		const field = form.fields
-			? (JSON.parse(form.fields) as Array<{ name: string; label: string }>).find(
+		const field = parsedFields
+			? (JSON.parse(parsedFields) as Array<{ name: string; label: string }>).find(
 					(f: { name: string }) => f.name === key,
 				)
 			: null;
@@ -309,7 +292,7 @@ function buildConfirmationFlex(
 			contents: [
 				...answerRows,
 				{ type: "separator", margin: "lg" },
-				...(form.save_to_metadata
+				...((form.save_to_metadata ?? form.saveToMetadata)
 					? [
 							{
 								type: "box",
@@ -353,11 +336,14 @@ function buildConfirmationFlex(
 forms.post("/api/forms/:id/submit", async (c) => {
 	try {
 		const formId = c.req.param("id");
-		const form = await getFormById(c.env.DB, formId);
+		const drizzleDb = c.get("db");
+		const formRepo = createFormRepository(drizzleDb);
+		const form = await formRepo.findById(formId);
 		if (!form) {
 			return c.json({ success: false, error: "Form not found" }, 404);
 		}
-		if (!form.is_active) {
+		const formRecord = form as unknown as Record<string, unknown>;
+		if (!(formRecord.is_active ?? formRecord.isActive)) {
 			return c.json({ success: false, error: "This form is no longer accepting responses" }, 400);
 		}
 
@@ -366,7 +352,8 @@ forms.post("/api/forms/:id/submit", async (c) => {
 		const submissionData = body.data ?? {};
 
 		// Validate required fields
-		const fields = JSON.parse(form.fields || "[]") as Array<{
+		const rawFields = (formRecord.fields ?? "[]") as string;
+		const fields = (typeof rawFields === "string" ? JSON.parse(rawFields) : rawFields) as Array<{
 			name: string;
 			label: string;
 			type: string;
@@ -385,14 +372,15 @@ forms.post("/api/forms/:id/submit", async (c) => {
 		// Resolve friend by lineUserId or friendId
 		let friendId: string | null = body.friendId ?? null;
 		if (!friendId && body.lineUserId) {
-			const friend = await getFriendByLineUserId(c.env.DB, body.lineUserId);
+			const friendRepo = createFriendRepository(drizzleDb);
+			const friend = await friendRepo.findByLineUserId(body.lineUserId as LineUserId);
 			if (friend) {
 				friendId = friend.id;
 			}
 		}
 
 		// Save submission (friendId null if not resolved — avoids FK constraint)
-		const submission = await createFormSubmission(c.env.DB, {
+		const submissionId = await formRepo.createSubmission({
 			formId,
 			friendId: friendId ?? null,
 			data: JSON.stringify(submissionData),
@@ -400,10 +388,17 @@ forms.post("/api/forms/:id/submit", async (c) => {
 
 		// Side effects (best-effort, don't fail the request)
 		if (friendId) {
-			await executeFormSideEffects(c.env.DB, form, friendId, submissionData, c.env.LINE_CHANNEL_ACCESS_TOKEN);
+			await executeFormSideEffects(
+				c.env.DB,
+				formRecord,
+				friendId,
+				submissionData,
+				c.env.LINE_CHANNEL_ACCESS_TOKEN,
+				drizzleDb,
+			);
 		}
 
-		return c.json({ success: true, data: serializeSubmission(submission) }, 201);
+		return c.json({ success: true, data: { id: submissionId } }, 201);
 	} catch (err) {
 		console.error("POST /api/forms/:id/submit error:", err);
 		return c.json({ success: false, error: "Internal server error" }, 500);

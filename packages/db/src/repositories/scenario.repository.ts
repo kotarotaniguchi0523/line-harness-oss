@@ -118,6 +118,55 @@ export function createScenarioRepository(db: Database) {
 			await db.update(scenarios).set({ isActive, updatedAt: DateTime.now().toISO() }).where(eq(scenarios.id, id));
 		},
 
+		async update(
+			id: ScenarioId,
+			updates: Partial<{
+				name: string;
+				description: string | null;
+				triggerType: string;
+				triggerTagId: string | null;
+				lineAccountId: string | null;
+			}>,
+		) {
+			const setClause: Record<string, unknown> = {};
+			if (updates.name !== undefined) setClause.name = updates.name;
+			if (updates.description !== undefined) setClause.description = updates.description;
+			if (updates.triggerType !== undefined) setClause.triggerType = updates.triggerType;
+			if (updates.triggerTagId !== undefined) setClause.triggerTagId = updates.triggerTagId;
+			if (updates.lineAccountId !== undefined) setClause.lineAccountId = updates.lineAccountId;
+
+			if (Object.keys(setClause).length === 0) return;
+			setClause.updatedAt = DateTime.now().toISO();
+
+			await db.update(scenarios).set(setClause).where(eq(scenarios.id, id));
+		},
+
+		async updateStep(
+			stepId: ScenarioStepId,
+			updates: Partial<{
+				stepOrder: number;
+				delayMinutes: number;
+				messageType: string;
+				messageContent: string;
+				conditionType: string | null;
+				conditionValue: string | null;
+				nextStepOnFalse: number | null;
+			}>,
+		) {
+			const setClause: Record<string, unknown> = {};
+			if (updates.stepOrder !== undefined) setClause.stepOrder = updates.stepOrder;
+			if (updates.delayMinutes !== undefined) setClause.delayMinutes = updates.delayMinutes;
+			if (updates.messageType !== undefined) setClause.messageType = updates.messageType;
+			if (updates.messageContent !== undefined) setClause.messageContent = updates.messageContent;
+			if (updates.conditionType !== undefined) setClause.conditionType = updates.conditionType;
+			if (updates.conditionValue !== undefined) setClause.conditionValue = updates.conditionValue;
+			if (updates.nextStepOnFalse !== undefined) setClause.nextStepOnFalse = updates.nextStepOnFalse;
+
+			if (Object.keys(setClause).length === 0) return;
+
+			await db.update(scenarioSteps).set(setClause).where(eq(scenarioSteps.id, stepId));
+		},
+
 		async delete(id: ScenarioId) {
 			await db.update(scenarios).set({ deletedAt: DateTime.now().toISO() }).where(eq(scenarios.id, id));
 		},
@@ -144,6 +193,29 @@ export function createScenarioRepository(db: Database) {
 				})
 				.onConflictDoNothing();
 			return id;
+		},
+
+		async advanceFriendScenario(id: string, currentStepOrder: number, nextDeliveryAt: string | null) {
+			await db
+				.update(friendScenarios)
+				.set({
+					currentStepOrder,
+					nextDeliveryAt,
+					status: "active",
+					updatedAt: DateTime.now().toISO(),
+				})
+				.where(eq(friendScenarios.id, id));
+		},
+
+		async completeFriendScenario(id: string) {
+			await db
+				.update(friendScenarios)
+				.set({
+					status: "completed",
+					nextDeliveryAt: null,
+					updatedAt: DateTime.now().toISO(),
+				})
+				.where(eq(friendScenarios.id, id));
 		},
 
 		async getDueDeliveries(limit = 500) {

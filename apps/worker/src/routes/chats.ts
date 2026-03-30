@@ -7,16 +7,7 @@ import {
 	type UpdateChatRequest,
 	UpdateChatSchema,
 } from "@line-crm/contracts";
-import {
-	createChatRepository,
-	createFriendRepository,
-	createOperator,
-	DateTime,
-	deleteOperator,
-	getOperatorById,
-	getOperators,
-	updateOperator,
-} from "@line-crm/db";
+import { createChatRepository, createFriendRepository, DateTime } from "@line-crm/db";
 import { chats, friends, messagesLog } from "@line-crm/db/schema";
 import type { ChatId, FriendId, OperatorId } from "@line-crm/domain";
 import { and, desc, eq } from "drizzle-orm";
@@ -30,19 +21,10 @@ const chatsRoute = new Hono<Env>();
 
 chatsRoute.get("/api/operators", async (c) => {
 	try {
-		const items = await getOperators(c.env.DB);
-		return c.json({
-			success: true,
-			data: items.map((o) => ({
-				id: o.id,
-				name: o.name,
-				email: o.email,
-				role: o.role,
-				isActive: Boolean(o.is_active),
-				createdAt: o.created_at,
-				updatedAt: o.updated_at,
-			})),
-		});
+		const db = c.get("db");
+		const chatRepo = createChatRepository(db);
+		const items = await chatRepo.listOperators();
+		return c.json({ success: true, data: items });
 	} catch (err) {
 		console.error("GET /api/operators error:", err);
 		return c.json({ success: false, error: "Internal server error" }, 500);
@@ -52,8 +34,11 @@ chatsRoute.get("/api/operators", async (c) => {
 chatsRoute.post("/api/operators", validateJson(CreateOperatorSchema), async (c) => {
 	try {
 		const body: CreateOperatorRequest = c.req.valid("json");
-		const item = await createOperator(c.env.DB, body);
-		return c.json({ success: true, data: { id: item.id, name: item.name, email: item.email, role: item.role } }, 201);
+		const db = c.get("db");
+		const chatRepo = createChatRepository(db);
+		const id = await chatRepo.createOperator(body);
+		const item = await chatRepo.findOperatorById(id as OperatorId);
+		return c.json({ success: true, data: item }, 201);
 	} catch (err) {
 		console.error("POST /api/operators error:", err);
 		return c.json({ success: false, error: "Internal server error" }, 500);
@@ -64,19 +49,12 @@ chatsRoute.put("/api/operators/:id", async (c) => {
 	try {
 		const id = c.req.param("id");
 		const body = await c.req.json();
-		await updateOperator(c.env.DB, id, body);
-		const updated = await getOperatorById(c.env.DB, id);
+		const db = c.get("db");
+		const chatRepo = createChatRepository(db);
+		await chatRepo.updateOperator(id as OperatorId, body);
+		const updated = await chatRepo.findOperatorById(id as OperatorId);
 		if (!updated) return c.json({ success: false, error: "Not found" }, 404);
-		return c.json({
-			success: true,
-			data: {
-				id: updated.id,
-				name: updated.name,
-				email: updated.email,
-				role: updated.role,
-				isActive: Boolean(updated.is_active),
-			},
-		});
+		return c.json({ success: true, data: updated });
 	} catch (err) {
 		console.error("PUT /api/operators/:id error:", err);
 		return c.json({ success: false, error: "Internal server error" }, 500);
@@ -85,7 +63,9 @@ chatsRoute.put("/api/operators/:id", async (c) => {
 
 chatsRoute.delete("/api/operators/:id", async (c) => {
 	try {
-		await deleteOperator(c.env.DB, c.req.param("id"));
+		const db = c.get("db");
+		const chatRepo = createChatRepository(db);
+		await chatRepo.deleteOperator(c.req.param("id") as OperatorId);
 		return c.json({ success: true, data: null });
 	} catch (err) {
 		console.error("DELETE /api/operators/:id error:", err);

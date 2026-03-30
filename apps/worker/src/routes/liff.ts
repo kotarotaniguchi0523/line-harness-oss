@@ -1,25 +1,84 @@
 import {
-	addTagToFriend,
+	createDb,
+	createEntryRouteRepository,
 	createFriendRepository,
 	createScenarioRepository,
 	createTagRepository,
-	createUser,
+	createUserRepository,
 	type Database,
 	DateTime,
-	getEntryRouteByRefCode,
-	getFriendByLineUserId,
-	getLineAccountByChannelId,
-	getLineAccounts,
-	getUserByEmail,
-	linkFriendToUser,
-	recordRefTracking,
-	upsertFriend,
 } from "@line-crm/db";
 import { friendScenarios, friends, tags } from "@line-crm/db/schema";
 import type { FriendId, LineAccountId, ScenarioId, TagId } from "@line-crm/domain";
 import { and, eq } from "drizzle-orm";
 import { Hono } from "hono";
 import type { Env } from "../index.js";
+
+// Legacy-compatible wrappers using repository pattern internally
+// Note: getLineAccountByChannelId returns raw D1 rows because login_channel_id/liff_id
+// are not in the Drizzle schema yet, and liff.ts needs them for multi-account OAuth.
+async function getLineAccountByChannelId(db: D1Database, channelId: string) {
+	return db
+		.prepare("SELECT * FROM line_accounts WHERE channel_id = ?")
+		.bind(channelId)
+		.first<Record<string, unknown>>();
+}
+async function getLineAccounts(db: D1Database) {
+	const result = await db
+		.prepare("SELECT * FROM line_accounts ORDER BY created_at DESC")
+		.all<Record<string, unknown>>();
+	return result.results ?? [];
+}
+async function upsertFriend(
+	db: D1Database,
+	data: { lineUserId: string; displayName: string | null; pictureUrl: string | null; statusMessage: string | null },
+) {
+	const drizzle = createDb(db);
+	const repo = createFriendRepository(drizzle);
+	await repo.upsert({
+		lineUserId: data.lineUserId as import("@line-crm/domain").LineUserId,
+		displayName: data.displayName,
+		pictureUrl: data.pictureUrl,
+		statusMessage: data.statusMessage,
+	});
+	return repo.findByLineUserId(data.lineUserId as import("@line-crm/domain").LineUserId);
+}
+async function getFriendByLineUserId(db: D1Database, lineUserId: string) {
+	const drizzle = createDb(db);
+	const repo = createFriendRepository(drizzle);
+	return repo.findByLineUserId(lineUserId as import("@line-crm/domain").LineUserId);
+}
+async function getUserByEmail(db: D1Database, email: string) {
+	const drizzle = createDb(db);
+	const repo = createUserRepository(drizzle);
+	return repo.findByEmail(email);
+}
+async function createUser(db: D1Database, data: { email: string | null; displayName?: string | null }) {
+	const drizzle = createDb(db);
+	const repo = createUserRepository(drizzle);
+	const id = await repo.create(data);
+	return repo.findById(id);
+}
+async function linkFriendToUser(db: D1Database, friendId: string, userId: string) {
+	const drizzle = createDb(db);
+	const repo = createUserRepository(drizzle);
+	await repo.linkFriend(friendId, userId);
+}
+async function getEntryRouteByRefCode(db: D1Database, refCode: string) {
+	const drizzle = createDb(db);
+	const repo = createEntryRouteRepository(drizzle);
+	return repo.findByRefCode(refCode);
+}
+async function recordRefTracking(db: D1Database, data: Record<string, unknown>) {
+	const drizzle = createDb(db);
+	const repo = createEntryRouteRepository(drizzle);
+	await repo.recordTracking(data as Parameters<ReturnType<typeof createEntryRouteRepository>["recordTracking"]>[0]);
+}
+async function addTagToFriend(db: D1Database, friendId: string, tagId: string) {
+	const drizzle = createDb(db);
+	const repo = createTagRepository(drizzle);
+	await repo.assignToFriend(friendId as FriendId, tagId as TagId);
+}
 
 const LIFF_ID_PATTERN = /liff\.line\.me\/([0-9]+-[A-Za-z0-9]+)/;
 const MOBILE_UA_PATTERN = /iphone|ipad|android|mobile/;
@@ -103,7 +162,7 @@ async function resolveAccountCredentials(
 	let liffUrl = defaultLiffUrl;
 	if (accountParam) {
 		const account = await getLineAccountByChannelId(db, accountParam);
-		if (account?.login_channel_id) channelId = account.login_channel_id;
+		if (account?.login_channel_id) channelId = account.login_channel_id as string;
 		if (account?.liff_id) liffUrl = `https://liff.line.me/${account.liff_id}`;
 	}
 	return { channelId, liffUrl };
