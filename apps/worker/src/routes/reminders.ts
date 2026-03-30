@@ -104,7 +104,7 @@ reminders.post("/api/reminders/:id/steps", async (c) => {
 		}
 		const db = c.get("db");
 		const reminderRepo = createReminderRepository(db);
-		const id = await reminderRepo.addStep({ reminderId, ...body });
+		const id = await reminderRepo.addStep({ reminderId: reminderId as ReminderId, ...body });
 		return c.json({ success: true, data: { id } }, 201);
 	} catch (err) {
 		console.error("POST /api/reminders/:id/steps error:", err);

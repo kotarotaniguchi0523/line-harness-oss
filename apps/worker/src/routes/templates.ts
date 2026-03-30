@@ -41,8 +41,7 @@ templates.post("/api/templates", async (c) => {
 		}
 		const db = c.get("db");
 		const templateRepo = createTemplateRepository(db);
-		const id = await templateRepo.create(body);
-		const item = await templateRepo.findById(id);
+		const item = await templateRepo.create(body);
 		return c.json({ success: true, data: item }, 201);
 	} catch (err) {
 		console.error("POST /api/templates error:", err);

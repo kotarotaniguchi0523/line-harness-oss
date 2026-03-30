@@ -17,7 +17,8 @@ export async function authMiddleware(c: Context<Env>, next: Next): Promise<Respo
 		PUBLIC_ROUTES.patterns.some((p) => p.test(path)) ||
 		path === PUBLIC_ROUTES.rpc
 	) {
-		return next();
+		await next();
+		return;
 	}
 
 	// Strategy 1: better-auth session cookie (httpOnly, secure)
@@ -26,7 +27,8 @@ export async function authMiddleware(c: Context<Env>, next: Next): Promise<Respo
 		const staff = await verifySessionCookie(c, sessionToken);
 		if (staff) {
 			c.set("staff", staff);
-			return next();
+			await next();
+			return;
 		}
 	}
 
@@ -40,12 +42,14 @@ export async function authMiddleware(c: Context<Env>, next: Next): Promise<Respo
 		const staff = await staffRepo.findByApiKey(token);
 		if (staff) {
 			c.set("staff", { id: staff.id, name: staff.name, role: staff.role as "owner" | "admin" | "staff" });
-			return next();
+			await next();
+			return;
 		}
 
 		if (token === c.env.API_KEY) {
 			c.set("staff", { id: "env-owner", name: "Owner", role: "owner" as const });
-			return next();
+			await next();
+			return;
 		}
 	}
 

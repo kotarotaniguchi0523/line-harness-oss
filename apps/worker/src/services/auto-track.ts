@@ -1,4 +1,4 @@
-import { createTrackedLink } from "@line-crm/db";
+import { createDb, createTrackedLinkRepository } from "@line-crm/db";
 
 const URL_REGEX = /https?:\/\/[^\s"'<>\])}]+/g;
 const TRAILING_PUNCTUATION_PATTERN = /[.,;:!?)]+$/;
@@ -34,8 +34,10 @@ async function createTrackingMap(
 	workerUrl: string,
 ): Promise<Map<string, { trackingUrl: string; originalUrl: string; label: string }>> {
 	const urlMap = new Map<string, { trackingUrl: string; originalUrl: string; label: string }>();
+	const drizzle = createDb(db);
+	const linkRepo = createTrackedLinkRepository(drizzle);
 	for (const url of urls) {
-		const link = await createTrackedLink(db, {
+		const link = await linkRepo.create({
 			name: `auto: ${url.slice(0, 60)}`,
 			originalUrl: url,
 		});

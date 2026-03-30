@@ -159,11 +159,12 @@ function registerListScenarios(server: McpServer, db: D1Database): void {
 			try {
 				const drizzle = createDb(db);
 				const scenarioRepo = createScenarioRepository(drizzle);
-				const scenarios = activeOnly ? await scenarioRepo.listActive() : await scenarioRepo.list();
+				const scenarios = await scenarioRepo.list();
+				const filtered = activeOnly ? scenarios.filter((s) => s.isActive) : scenarios;
 				return textResult({
 					success: true,
-					total: scenarios.length,
-					scenarios: scenarios.map((s) => ({
+					total: filtered.length,
+					scenarios: filtered.map((s) => ({
 						id: s.id,
 						name: s.name,
 						description: s.description,
@@ -303,7 +304,7 @@ function registerAccountSummary(server: McpServer, db: D1Database): void {
 								id: b.id,
 								title: b.title,
 								status: b.status,
-								sentAt: b.sent_at,
+								sentAt: b.sentAt,
 							})),
 						},
 						tags: {

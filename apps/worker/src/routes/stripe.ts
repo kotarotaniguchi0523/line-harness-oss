@@ -36,13 +36,13 @@ stripe.get("/api/integrations/stripe/events", async (c) => {
 			success: true,
 			data: items.map((e) => ({
 				id: e.id,
-				stripeEventId: e.stripe_event_id,
-				eventType: e.event_type,
-				friendId: e.friend_id,
+				stripeEventId: e.stripeEventId,
+				eventType: e.eventType,
+				friendId: e.friendId,
 				amount: e.amount,
 				currency: e.currency,
 				metadata: e.metadata ? JSON.parse(e.metadata) : null,
-				processedAt: e.processed_at,
+				processedAt: e.processedAt,
 			})),
 		});
 	} catch (err) {

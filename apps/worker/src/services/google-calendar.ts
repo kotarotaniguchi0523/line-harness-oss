@@ -6,7 +6,12 @@
 // connection record so subsequent requests can skip the refresh.
 // =============================================================================
 
-import { type GoogleCalendarConnectionRow, updateCalendarConnectionTokens } from "@line-crm/db";
+import { createCalendarRepository, createDb } from "@line-crm/db";
+
+/** Type inferred from the calendar connection row returned by the repository */
+type GoogleCalendarConnectionRow = NonNullable<
+	Awaited<ReturnType<ReturnType<typeof createCalendarRepository>["findConnectionById"]>>
+>;
 
 const GCAL_BASE = "https://www.googleapis.com/calendar/v3";
 const TIMEZONE = "Asia/Tokyo";
@@ -49,10 +54,10 @@ export type TokenRefreshResult = { ok: true; accessToken: string } | { ok: false
  *  - current time + buffer exceeds the stored expiry timestamp
  */
 export function isTokenExpired(connection: GoogleCalendarConnectionRow): boolean {
-	if (!connection.token_expires_at) {
+	if (!connection.tokenExpiresAt) {
 		return true;
 	}
-	const expiresAtMs = new Date(connection.token_expires_at).getTime();
+	const expiresAtMs = new Date(connection.tokenExpiresAt).getTime();
 	if (Number.isNaN(expiresAtMs)) {
 		return true;
 	}
@@ -114,7 +119,9 @@ export async function refreshGoogleAccessToken(
 	const expiresAtMs = Date.now() + data.expires_in * 1000;
 	const tokenExpiresAt = new Date(expiresAtMs).toISOString();
 
-	await updateCalendarConnectionTokens(db, connectionId, {
+	const drizzle = createDb(db);
+	const calendarRepo = createCalendarRepository(drizzle);
+	await calendarRepo.updateTokens(connectionId, {
 		accessToken: data.access_token,
 		tokenExpiresAt,
 	});
@@ -135,23 +142,23 @@ export async function ensureValidAccessToken(
 	clientId: string | undefined,
 	clientSecret: string | undefined,
 ): Promise<string | null> {
-	if (!connection.access_token) {
+	if (!connection.accessToken) {
 		return null;
 	}
 
 	if (!isTokenExpired(connection)) {
-		return connection.access_token;
+		return connection.accessToken;
 	}
 
-	if (!(connection.refresh_token && clientId && clientSecret)) {
+	if (!(connection.refreshToken && clientId && clientSecret)) {
 		console.warn(
 			"Calendar connection token expired but refresh not possible (missing refresh_token or OAuth credentials)",
 			{ connectionId: connection.id },
 		);
-		return connection.access_token;
+		return connection.accessToken;
 	}
 
-	const result = await refreshGoogleAccessToken(db, connection.id, clientId, clientSecret, connection.refresh_token);
+	const result = await refreshGoogleAccessToken(db, connection.id, clientId, clientSecret, connection.refreshToken);
 
 	if (result.ok) {
 		return result.accessToken;
@@ -161,7 +168,7 @@ export async function ensureValidAccessToken(
 		connectionId: connection.id,
 		error: result.error,
 	});
-	return connection.access_token;
+	return connection.accessToken;
 }
 
 // =============================================================================

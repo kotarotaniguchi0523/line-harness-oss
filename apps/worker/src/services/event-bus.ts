@@ -16,7 +16,7 @@ import {
 	createWebhookConfigRepository,
 	DateTime,
 } from "@line-crm/db";
-import type { FriendId } from "@line-crm/domain";
+import type { AutomationId, FriendId } from "@line-crm/domain";
 import { executeAction } from "./action-executor.js";
 import { sendAdConversions } from "./ad-conversion.js";
 
@@ -159,8 +159,8 @@ async function processAutomations(
 			const anySuccess = results.some((r) => r.success);
 
 			await automationRepo.logExecution({
-				automationId: (automation as unknown as Record<string, unknown>).id as string,
-				friendId: payload.friendId,
+				automationId: (automation as unknown as Record<string, unknown>).id as AutomationId,
+				friendId: payload.friendId as FriendId | undefined,
 				eventData: JSON.stringify(payload.eventData ?? {}),
 				actionsResult: JSON.stringify(results),
 				status: allSuccess ? "success" : anySuccess ? "partial" : "failed",

@@ -55,8 +55,7 @@ notifications.post("/api/notifications/rules", async (c) => {
 			return c.json({ success: false, error: "name and eventType are required" }, 400);
 		const db = c.get("db");
 		const notifRepo = createNotificationRepository(db);
-		const id = await notifRepo.createRule(body);
-		const item = await notifRepo.findRuleById(id);
+		const item = await notifRepo.createRule(body);
 		return c.json({ success: true, data: item }, 201);
 	} catch (err) {
 		console.error("POST /api/notifications/rules error:", err);

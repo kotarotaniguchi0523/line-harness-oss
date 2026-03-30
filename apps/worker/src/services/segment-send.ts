@@ -20,7 +20,7 @@ export async function processSegmentSend(
 	lineClient: LineClient,
 	broadcastId: string,
 	condition: SegmentCondition,
-): Promise<Broadcast> {
+): Promise<NonNullable<Awaited<ReturnType<ReturnType<typeof createBroadcastRepository>["findById"]>>>> {
 	const drizzle = createDb(db);
 	const broadcastRepo = createBroadcastRepository(drizzle);
 

@@ -38,8 +38,7 @@ calendar.post("/api/integrations/google-calendar/connect", validateJson(ConnectC
 		const body: ConnectCalendarRequest = c.req.valid("json");
 		const db = c.get("db");
 		const calendarRepo = createCalendarRepository(db);
-		const id = await calendarRepo.createConnection(body);
-		const conn = await calendarRepo.findConnectionById(id);
+		const conn = await calendarRepo.createConnection(body);
 		return c.json({ success: true, data: conn }, 201);
 	} catch (err) {
 		console.error("POST /api/integrations/google-calendar/connect error:", err);
@@ -165,12 +164,10 @@ calendar.post("/api/integrations/google-calendar/book", validateJson(CreateBooki
 		const calendarRepo = createCalendarRepository(db);
 
 		// D1 に予約レコードを作成
-		const bookingId = await calendarRepo.createBooking({
+		const booking = await calendarRepo.createBooking({
 			...body,
 			metadata: body.metadata ? JSON.stringify(body.metadata) : undefined,
 		});
-
-		let eventId: string | null = null;
 
 		// Google Calendar にイベントを作成（ベストエフォート）
 		const conn = await calendarRepo.findConnectionById(body.connectionId);
@@ -189,15 +186,14 @@ calendar.post("/api/integrations/google-calendar/book", validateJson(CreateBooki
 					end: body.endAt,
 					description: body.description,
 				});
-				eventId = result.eventId;
-				await calendarRepo.updateBookingEventId(bookingId, eventId);
+				await calendarRepo.updateBookingEventId(booking.id, result.eventId);
 			} catch (err) {
 				console.warn("Google Calendar createEvent error (booking still created in D1):", err);
 			}
 		}
 
-		const booking = await calendarRepo.findBookingById(bookingId);
-		return c.json({ success: true, data: booking }, 201);
+		const updatedBooking = await calendarRepo.findBookingById(booking.id);
+		return c.json({ success: true, data: updatedBooking ?? booking }, 201);
 	} catch (err) {
 		console.error("POST /api/integrations/google-calendar/book error:", err);
 		return c.json({ success: false, error: "Internal server error" }, 500);

@@ -24,8 +24,7 @@ webhooks.post("/api/webhooks/incoming", async (c) => {
 		if (!body.name) return c.json({ success: false, error: "name is required" }, 400);
 		const db = c.get("db");
 		const webhookRepo = createWebhookConfigRepository(db);
-		const id = await webhookRepo.createIncoming(body);
-		const item = await webhookRepo.findIncomingById(id);
+		const item = await webhookRepo.createIncoming(body);
 		return c.json({ success: true, data: item }, 201);
 	} catch (err) {
 		console.error("POST /api/webhooks/incoming error:", err);
@@ -81,8 +80,7 @@ webhooks.post("/api/webhooks/outgoing", async (c) => {
 		if (!(body.name && body.url)) return c.json({ success: false, error: "name and url are required" }, 400);
 		const db = c.get("db");
 		const webhookRepo = createWebhookConfigRepository(db);
-		const id = await webhookRepo.createOutgoing({ ...body, eventTypes: body.eventTypes ?? [] });
-		const item = await webhookRepo.findOutgoingById(id);
+		const item = await webhookRepo.createOutgoing({ ...body, eventTypes: body.eventTypes ?? [] });
 		return c.json({ success: true, data: item }, 201);
 	} catch (err) {
 		console.error("POST /api/webhooks/outgoing error:", err);

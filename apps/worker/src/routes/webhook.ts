@@ -55,8 +55,8 @@ async function deliverFirstStepImmediately(
 
 	const expandedContent = expandVariables(firstStep.messageContent, {
 		id: friend.id,
-		display_name: friend.displayName,
-		user_id: friend.userId,
+		displayName: friend.displayName,
+		userId: friend.userId,
 	});
 	const message = buildMessage(firstStep.messageType, expandedContent);
 	await lineClient.replyMessage(replyToken, [message]);
@@ -371,7 +371,7 @@ async function handleGroupTextMessage(
 		lineClient,
 		event.replyToken,
 		incomingText,
-		friend ? { id: friend.id, display_name: friend.displayName, user_id: friend.userId } : null,
+		friend ? { id: friend.id, displayName: friend.displayName, userId: friend.userId } : null,
 		lineAccountId,
 		workerUrl,
 	);
@@ -673,7 +673,7 @@ async function handleDirectTextMessage(
 		lineClient,
 		event.replyToken,
 		incomingText,
-		{ id: friend.id, display_name: friend.displayName, user_id: friend.userId },
+		{ id: friend.id, displayName: friend.displayName, userId: friend.userId },
 		lineAccountId,
 		workerUrl,
 	);
@@ -844,7 +844,7 @@ async function handleAutoReply(
 	lineClient: LineClient,
 	replyToken: string,
 	incomingText: string,
-	friend: { id: string; display_name: string | null; user_id: string | null } | null,
+	friend: { id: string; displayName: string | null; userId: string | null } | null,
 	lineAccountId: string | null,
 	workerUrl?: string,
 ): Promise<boolean> {

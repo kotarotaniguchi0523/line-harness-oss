@@ -6,7 +6,7 @@ import {
 	UuidSchema,
 } from "@line-crm/contracts";
 import { createFriendRepository, createScenarioRepository } from "@line-crm/db";
-import type { FriendId, LineAccountId, ScenarioId, ScenarioStepId } from "@line-crm/domain";
+import type { FriendId, LineAccountId, ScenarioId, ScenarioStepId, TagId } from "@line-crm/domain";
 import { Hono } from "hono";
 import { z } from "zod";
 import type { Env } from "../index.js";
@@ -71,7 +71,7 @@ scenarios.post("/api/scenarios", validateJson(CreateScenarioSchema), async (c) =
 			name: body.name,
 			description: body.description ?? undefined,
 			triggerType: body.triggerType,
-			triggerTagId: body.triggerTagId ?? undefined,
+			triggerTagId: (body.triggerTagId ?? undefined) as TagId | undefined,
 			lineAccountId: body.lineAccountId as LineAccountId | undefined,
 		});
 
@@ -105,8 +105,11 @@ scenarios.put(
 				description: body.description,
 				triggerType: body.triggerType,
 				triggerTagId: body.triggerTagId,
-				isActive: body.isActive,
 			});
+
+			if (body.isActive !== undefined) {
+				await scenarioRepo.setActive(id as ScenarioId, body.isActive);
+			}
 
 			const updated = await scenarioRepo.findById(id as ScenarioId);
 			if (!updated) {

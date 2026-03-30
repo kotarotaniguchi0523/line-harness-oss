@@ -34,8 +34,7 @@ conversions.post("/api/conversions/points", async (c) => {
 
 		const db = c.get("db");
 		const conversionRepo = createConversionRepository(db);
-		const id = await conversionRepo.createPoint(body);
-		const point = await conversionRepo.findPointById(id);
+		const point = await conversionRepo.createPoint(body);
 		return c.json({ success: true, data: point }, 201);
 	} catch (err) {
 		console.error("POST /api/conversions/points error:", err);

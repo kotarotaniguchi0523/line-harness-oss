@@ -58,17 +58,17 @@ health.post("/api/accounts/:id/migrate", async (c) => {
 
 		const db = c.get("db");
 		const healthRepo = createHealthRepository(db);
-		const id = await healthRepo.createMigration({
+		const migration = await healthRepo.createMigration({
 			fromAccountId,
 			toAccountId: body.toAccountId,
 			totalCount,
 		});
 
 		// 移行処理は非同期で実行
-		await healthRepo.updateMigration(id, { status: "in_progress" });
+		await healthRepo.updateMigration(migration.id, { status: "in_progress" });
 
-		const migration = await healthRepo.findMigrationById(id);
-		return c.json({ success: true, data: migration }, 201);
+		const updated = await healthRepo.findMigrationById(migration.id);
+		return c.json({ success: true, data: updated ?? migration }, 201);
 	} catch (err) {
 		console.error("POST /api/accounts/:id/migrate error:", err);
 		return c.json({ success: false, error: "Internal server error" }, 500);

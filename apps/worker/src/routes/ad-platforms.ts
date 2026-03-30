@@ -43,12 +43,11 @@ adPlatforms.post("/api/ad-platforms", async (c) => {
 
 		const db = c.get("db");
 		const adPlatformRepo = createAdPlatformRepository(db);
-		const id = await adPlatformRepo.create({
+		const platform = await adPlatformRepo.create({
 			name: body.name,
 			displayName: body.displayName,
 			config: body.config,
 		});
-		const platform = await adPlatformRepo.findById(id);
 		return c.json({ success: true, data: platform }, 201);
 	} catch (err) {
 		console.error("POST /api/ad-platforms error:", err);

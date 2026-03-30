@@ -26,22 +26,22 @@ export async function processReminderDeliveries(db: D1Database, lineClient: Line
 				await sleep(addJitter(50, 200));
 			}
 
-			const friend = await friendRepo.findById(fr.friend_id as FriendId);
+			const friend = await friendRepo.findById(fr.friendId as FriendId);
 			if (!friend?.isFollowing) {
 				// フォロー解除済み — スキップ
 				continue;
 			}
 
 			for (const step of fr.steps) {
-				const message = buildMessage(step.message_type, step.message_content);
+				const message = buildMessage(step.messageType, step.messageContent);
 				await lineClient.pushMessage(friend.lineUserId, [message]);
 
 				// メッセージログに記録
 				await friendRepo.logMessage({
 					friendId: friend.id,
 					direction: "outgoing",
-					messageType: step.message_type,
-					content: step.message_content,
+					messageType: step.messageType,
+					content: step.messageContent,
 				});
 
 				// 配信済みを記録
@@ -49,7 +49,7 @@ export async function processReminderDeliveries(db: D1Database, lineClient: Line
 			}
 
 			// 全ステップ配信済みかチェック
-			await reminderRepo.completeIfDone(fr.id, fr.reminder_id as ReminderId);
+			await reminderRepo.completeIfDone(fr.id, fr.reminderId as ReminderId);
 		} catch (err) {
 			console.error(`リマインダ配信エラー (friend_reminder ${fr.id}):`, err);
 		}

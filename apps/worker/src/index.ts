@@ -1,5 +1,7 @@
 import { createDb, createLineAccountRepository } from "@line-crm/db";
 import { LineClient } from "@line-crm/line-sdk";
+import { betterAuth } from "better-auth";
+import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { Hono } from "hono";
 import { applyAuthenticatedMiddleware, applyBaseMiddleware } from "./middleware/combined.js";
 import { errorHandler } from "./middleware/error-handler.js";
@@ -120,9 +122,7 @@ app.route("/", media);
 app.route("/", mcpRoute);
 
 // better-auth handler — serves /api/auth/** endpoints (sign-in, sign-up, session, etc.)
-app.on(["GET", "POST"], "/api/auth/**", async (c) => {
-	const { betterAuth } = await import("better-auth");
-	const { drizzleAdapter } = await import("better-auth/adapters/drizzle");
+app.on(["GET", "POST"], "/api/auth/**", (c) => {
 	const db = c.get("db");
 	const auth = betterAuth({
 		database: drizzleAdapter(db, { provider: "sqlite" }),

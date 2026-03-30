@@ -45,8 +45,7 @@ users.post("/api/users", async (c) => {
 
 		const db = c.get("db");
 		const userRepo = createUserRepository(db);
-		const id = await userRepo.create(body);
-		const user = await userRepo.findById(id);
+		const user = await userRepo.create(body);
 		return c.json({ success: true, data: user }, 201);
 	} catch (err) {
 		console.error("POST /api/users error:", err);

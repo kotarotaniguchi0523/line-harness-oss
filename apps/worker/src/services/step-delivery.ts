@@ -83,16 +83,16 @@ async function evaluateCondition(
  */
 export function expandVariables(
 	content: string,
-	friend: { id: string; display_name: string | null; user_id: string | null; ref_code?: string | null },
+	friend: { id: string; displayName: string | null; userId: string | null; refCode?: string | null },
 	apiOrigin?: string,
 ): string {
 	let result = content;
-	result = result.replace(/\{\{name\}\}/g, friend.display_name ?? "");
-	result = result.replace(/\{\{uid\}\}/g, friend.user_id ?? "");
+	result = result.replace(/\{\{name\}\}/g, friend.displayName ?? "");
+	result = result.replace(/\{\{uid\}\}/g, friend.userId ?? "");
 	result = result.replace(/\{\{friend_id\}\}/g, friend.id);
-	result = result.replace(/\{\{ref\}\}/g, friend.ref_code ?? "");
+	result = result.replace(/\{\{ref\}\}/g, friend.refCode ?? "");
 	// Conditional block: {{#if_ref}}...{{/if_ref}} — only shown if ref_code exists
-	if (friend.ref_code) {
+	if (friend.refCode) {
 		result = result.replace(/\{\{#if_ref\}\}([\s\S]*?)\{\{\/if_ref\}\}/g, "$1");
 	} else {
 		result = result.replace(/\{\{#if_ref\}\}[\s\S]*?\{\{\/if_ref\}\}/g, "");
@@ -100,7 +100,7 @@ export function expandVariables(
 	if (apiOrigin) {
 		result = result.replace(/\{\{auth_url:([^}]+)\}\}/g, (_match, channelId) => {
 			const params = new URLSearchParams({ account: channelId, ref: "cross-link" });
-			if (friend.user_id) params.set("uid", friend.user_id);
+			if (friend.userId) params.set("uid", friend.userId);
 			return `${apiOrigin}/auth/line?${params.toString()}`;
 		});
 	}
@@ -158,11 +158,11 @@ async function processSingleDelivery(
 	lineClient: LineClient,
 	fs: {
 		id: string;
-		friend_id: string;
-		scenario_id: string;
-		current_step_order: number;
+		friendId: string;
+		scenarioId: string;
+		currentStepOrder: number;
 		status: string;
-		next_delivery_at: string | null;
+		nextDeliveryAt: string | null;
 	},
 	workerUrl?: string,
 ): Promise<void> {
@@ -171,7 +171,7 @@ async function processSingleDelivery(
 	const scenarioRepo = createScenarioRepository(drizzle);
 
 	// Get friend first to read preferred delivery hour from metadata
-	const friend = await friendRepo.findById(fs.friend_id as FriendId);
+	const friend = await friendRepo.findById(fs.friendId as FriendId);
 	if (!friend?.isFollowing) {
 		await scenarioRepo.completeFriendScenario(fs.id);
 		return;
@@ -180,7 +180,7 @@ async function processSingleDelivery(
 	const preferredHour = typeof metadata.preferred_hour === "number" ? metadata.preferred_hour : undefined;
 
 	// Get all steps for this scenario
-	const scenario = await scenarioRepo.findById(fs.scenario_id as import("@line-crm/domain").ScenarioId);
+	const scenario = await scenarioRepo.findById(fs.scenarioId as import("@line-crm/domain").ScenarioId);
 	const steps = scenario?.steps ?? [];
 	if (steps.length === 0) {
 		await scenarioRepo.completeFriendScenario(fs.id);
@@ -189,7 +189,7 @@ async function processSingleDelivery(
 
 	// Steps are sorted by stepOrder but may not be contiguous (e.g., 1, 3, 5 after deletions).
 	// Find the next step whose stepOrder > current_step_order.
-	const currentStep = steps.find((s) => s.stepOrder > fs.current_step_order);
+	const currentStep = steps.find((s) => s.stepOrder > fs.currentStepOrder);
 
 	if (!currentStep) {
 		await scenarioRepo.completeFriendScenario(fs.id);
@@ -198,7 +198,7 @@ async function processSingleDelivery(
 
 	// Check step condition before sending
 	if (currentStep.conditionType) {
-		const conditionMet = await evaluateCondition(db, fs.friend_id, {
+		const conditionMet = await evaluateCondition(db, fs.friendId, {
 			condition_type: currentStep.conditionType,
 			condition_value: currentStep.conditionValue ?? null,
 		});

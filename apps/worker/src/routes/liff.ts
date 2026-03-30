@@ -56,8 +56,7 @@ async function getUserByEmail(db: D1Database, email: string) {
 async function createUser(db: D1Database, data: { email: string | null; displayName?: string | null }) {
 	const drizzle = createDb(db);
 	const repo = createUserRepository(drizzle);
-	const id = await repo.create(data);
-	return repo.findById(id);
+	return repo.create(data);
 }
 async function linkFriendToUser(db: D1Database, friendId: string, userId: string) {
 	const drizzle = createDb(db);
@@ -94,7 +93,10 @@ async function resolveLoginCredentials(
 	if (!accountParam) return { loginChannelId: defaultChannelId, loginChannelSecret: defaultChannelSecret };
 	const account = await getLineAccountByChannelId(db, accountParam);
 	if (account?.login_channel_id && account?.login_channel_secret) {
-		return { loginChannelId: account.login_channel_id, loginChannelSecret: account.login_channel_secret };
+		return {
+			loginChannelId: account.login_channel_id as string,
+			loginChannelSecret: account.login_channel_secret as string,
+		};
 	}
 	return { loginChannelId: defaultChannelId, loginChannelSecret: defaultChannelSecret };
 }
@@ -376,12 +378,12 @@ async function exchangeTokens(
 /** Resolve or create a user identity and link it to the friend */
 async function resolveUserIdentity(
 	db: D1Database,
-	friend: { id: string; user_id?: string | null },
+	friend: { id: string; userId?: string | null },
 	verified: { email?: string; name?: string },
 	uidParam: string,
 	displayName: string,
 ): Promise<string> {
-	const existingUserId = (friend as unknown as Record<string, unknown>).user_id as string | null;
+	const existingUserId = friend.userId ?? null;
 	if (existingUserId) return existingUserId;
 
 	let userId: string | null = uidParam || null;
@@ -438,8 +440,8 @@ async function handleAttribution(
 		ipAddress,
 	});
 
-	if (route?.tag_id) {
-		await addTagToFriend(db, friendId, route.tag_id);
+	if (route?.tagId) {
+		await addTagToFriend(db, friendId, route.tagId);
 	}
 }
 
@@ -516,7 +518,7 @@ async function enrollFriendAddScenariosViaOAuth(
 	db: D1Database,
 	drizzleDb: Database,
 	scenarioRepo: ReturnType<typeof createScenarioRepository>,
-	friend: { id: string; display_name?: string | null; user_id?: string | null },
+	friend: { id: string; displayName?: string | null; userId?: string | null },
 	lineUserId: string,
 	accountParam: string,
 	defaultAccessToken: string,
@@ -530,7 +532,7 @@ async function enrollFriendAddScenariosViaOAuth(
 	let accessToken = defaultAccessToken;
 	if (accountParam) {
 		const acct = await getLineAccountByChannelId(db, accountParam);
-		if (acct) accessToken = acct.channel_access_token;
+		if (acct) accessToken = acct.channel_access_token as string;
 	}
 	const lineClient = new LineClient(accessToken);
 
@@ -552,7 +554,7 @@ async function enrollFriendAddScenariosViaOAuth(
 		if (firstStep && firstStep.delayMinutes === 0) {
 			const expandedContent = expandVariables(
 				firstStep.messageContent,
-				friend as { id: string; display_name: string | null; user_id: string | null },
+				{ id: friend.id, displayName: friend.displayName ?? null, userId: friend.userId ?? null },
 				workerUrl,
 			);
 			await lineClient.pushMessage(lineUserId, [buildMessage(firstStep.messageType, expandedContent)]);
@@ -600,6 +602,7 @@ liffRoutes.get("/auth/callback", async (c) => {
 		const lineUserId = verified.sub;
 
 		const friend = await upsertFriend(db, { lineUserId, displayName, pictureUrl, statusMessage: null });
+		if (!friend) return c.html(errorPage("Failed to upsert friend"));
 		await resolveUserIdentity(db, friend, verified, state.uidParam, displayName);
 
 		const adParams = {
@@ -674,9 +677,9 @@ liffRoutes.post("/api/liff/profile", async (c) => {
 			success: true,
 			data: {
 				id: friend.id,
-				displayName: friend.display_name,
-				isFollowing: Boolean(friend.is_following),
-				userId: (friend as unknown as Record<string, unknown>).user_id ?? null,
+				displayName: friend.displayName,
+				isFollowing: Boolean(friend.isFollowing),
+				userId: friend.userId ?? null,
 			},
 		});
 	} catch (err) {
@@ -694,8 +697,9 @@ async function verifyIdTokenMultiChannel(
 	const loginChannelIds = [defaultChannelId];
 	const dbAccounts = await getLineAccounts(rawDb);
 	for (const acct of dbAccounts) {
-		if (acct.login_channel_id && !loginChannelIds.includes(acct.login_channel_id)) {
-			loginChannelIds.push(acct.login_channel_id);
+		const loginChId = acct.login_channel_id as string | undefined;
+		if (loginChId && !loginChannelIds.includes(loginChId)) {
+			loginChannelIds.push(loginChId);
 		}
 	}
 

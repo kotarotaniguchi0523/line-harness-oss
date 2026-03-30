@@ -11,15 +11,24 @@
  */
 
 import { AD_PLATFORM_URLS } from "@line-crm/contracts";
-import {
-	type AdPlatformConfig,
-	getActiveAdPlatforms,
-	getRefTrackingWithClickIds,
-	logAdConversion,
-	type RefTracking,
-} from "@line-crm/db";
+import { createAdPlatformRepository, createDb, createEntryRouteRepository } from "@line-crm/db";
 import type { Result } from "neverthrow";
 import { err, ok } from "neverthrow";
+
+/** Parsed config from the ad_platforms.config JSON column */
+type AdPlatformConfig = Record<string, string>;
+
+/** A ref_tracking row with click IDs */
+interface RefTracking {
+	fbclid?: string | null;
+	gclid?: string | null;
+	twclid?: string | null;
+	ttclid?: string | null;
+	yclid?: string | null;
+	utmSource?: string | null;
+	ipAddress?: string | null;
+	userAgent?: string | null;
+}
 
 // ---------------------------------------------------------------------------
 // Error types
@@ -202,12 +211,15 @@ export async function sendAdConversions(
 	eventName: string,
 	eventValue?: number,
 ): Promise<ApiResult<ConversionSendResult[]>> {
-	const ref = await getRefTrackingWithClickIds(db, friendId);
+	const drizzle = createDb(db);
+	const entryRouteRepo = createEntryRouteRepository(drizzle);
+	const ref = await entryRouteRepo.getTracking(friendId);
 	if (!ref) {
 		return ok([]); // No ref tracking data — nothing to send (not an error)
 	}
 
-	const platforms = await getActiveAdPlatforms(db);
+	const adPlatformRepo = createAdPlatformRepository(drizzle);
+	const platforms = await adPlatformRepo.listActive();
 	const results: ConversionSendResult[] = [];
 
 	for (const platform of platforms) {
@@ -221,7 +233,7 @@ export async function sendAdConversions(
 		const sendResult = await converter.send(config, ref, eventName, eventValue);
 
 		if (sendResult.isOk()) {
-			await logAdConversion(db, {
+			await adPlatformRepo.logConversion({
 				platformId: platform.id,
 				friendId,
 				eventName,
@@ -232,7 +244,7 @@ export async function sendAdConversions(
 			results.push({ platform: platform.name, clickId, status: "sent" });
 		} else {
 			const errorMessage = sendResult.error.message;
-			await logAdConversion(db, {
+			await adPlatformRepo.logConversion({
 				platformId: platform.id,
 				friendId,
 				eventName,
@@ -277,15 +289,15 @@ async function sendMetaConversion(
 
 	// Build user_data with hashed PII fields
 	const hashedUserData = await hashUserData({
-		email: ref.utm_source ?? null, // placeholder — real email from friend profile
+		email: ref.utmSource ?? null, // placeholder — real email from friend profile
 		phone: null,
 	});
 
 	const userData: Record<string, unknown> = {
 		...hashedUserData,
 		fbc: `fb.1.${Date.now()}.${ref.fbclid}`,
-		client_ip_address: ref.ip_address || undefined,
-		client_user_agent: ref.user_agent || undefined,
+		client_ip_address: ref.ipAddress || undefined,
+		client_user_agent: ref.userAgent || undefined,
 	};
 
 	const eventData: Record<string, unknown> = {
@@ -467,8 +479,8 @@ async function sendTikTokConversion(
 
 	const userContext: Record<string, unknown> = {
 		...hashedUserData,
-		user_agent: ref.user_agent || undefined,
-		ip: ref.ip_address || undefined,
+		user_agent: ref.userAgent || undefined,
+		ip: ref.ipAddress || undefined,
 	};
 
 	const body = {

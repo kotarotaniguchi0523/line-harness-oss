@@ -48,8 +48,7 @@ affiliates.post("/api/affiliates", async (c) => {
 
 		const db = c.get("db");
 		const affiliateRepo = createAffiliateRepository(db);
-		const id = await affiliateRepo.create(body);
-		const item = await affiliateRepo.findById(id);
+		const item = await affiliateRepo.create(body);
 		return c.json({ success: true, data: item }, 201);
 	} catch (err) {
 		console.error("POST /api/affiliates error:", err);

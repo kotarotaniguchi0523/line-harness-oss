@@ -72,16 +72,15 @@ trackedLinks.post("/api/tracked-links", validateJson(CreateTrackedLinkSchema), a
 		const db = c.get("db");
 		const linkRepo = createTrackedLinkRepository(db);
 
-		const id = await linkRepo.create({
+		const link = await linkRepo.create({
 			name: body.name,
 			originalUrl: body.originalUrl,
 			tagId: body.tagId ?? null,
 			scenarioId: body.scenarioId ?? null,
 		});
 
-		const link = await linkRepo.findById(id);
 		const base = getBaseUrl(c);
-		return c.json({ success: true, data: { ...link, trackingUrl: `${base}/t/${id}` } }, 201);
+		return c.json({ success: true, data: { ...link, trackingUrl: `${base}/t/${link.id}` } }, 201);
 	} catch (err) {
 		console.error("POST /api/tracked-links error:", err);
 		return c.json({ success: false, error: "Internal server error" }, 500);
