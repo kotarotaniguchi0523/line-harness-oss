@@ -17,9 +17,11 @@
 import {
 	createBroadcastRepository,
 	createDb,
+	createFormRepository,
 	createFriendRepository,
 	createScenarioRepository,
 	createTagRepository,
+	createTrackedLinkRepository,
 } from "@line-crm/db";
 import type { BroadcastId, FriendId, ScenarioId, ScenarioStepId } from "@line-crm/domain";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -91,8 +93,9 @@ function registerListFriends(server: McpServer, db: D1Database): void {
 			page: z.number().int().positive().default(1).describe("Page number (1-based)"),
 			limit: z.number().int().positive().default(20).describe("Items per page (max 100)"),
 			tagId: z.string().uuid().optional().describe("Filter by tag ID"),
+			search: z.string().optional().describe("Search by display name (partial match)"),
 		},
-		async ({ page, limit, tagId }) => {
+		async ({ page, limit, tagId, search }) => {
 			try {
 				const drizzle = createDb(db);
 				const friendRepo = createFriendRepository(drizzle);
@@ -101,6 +104,7 @@ function registerListFriends(server: McpServer, db: D1Database): void {
 					page,
 					limit: pageSize,
 					tagId: tagId as import("@line-crm/domain").TagId | undefined,
+					search,
 				});
 				return textResult({
 					success: true,
@@ -492,39 +496,23 @@ function registerManageScenarios(server: McpServer, db: D1Database): void {
 					}
 					case "update_step": {
 						if (!params.stepId) throw new Error("stepId is required for update_step action");
-						// The Drizzle repo doesn't have updateStep, use raw D1
-						const setClauses: string[] = [];
-						const binds: unknown[] = [];
-						if (params.stepOrder !== undefined) {
-							setClauses.push("step_order = ?");
-							binds.push(params.stepOrder);
-						}
-						if (params.delayMinutes !== undefined) {
-							setClauses.push("delay_minutes = ?");
-							binds.push(params.delayMinutes);
-						}
-						if (params.messageType !== undefined) {
-							setClauses.push("message_type = ?");
-							binds.push(params.messageType);
-						}
-						if (params.messageContent !== undefined) {
-							setClauses.push("message_content = ?");
-							binds.push(params.messageContent);
-						}
-						if (params.conditionType !== undefined) {
-							setClauses.push("condition_type = ?");
-							binds.push(params.conditionType);
-						}
-						if (params.conditionValue !== undefined) {
-							setClauses.push("condition_value = ?");
-							binds.push(params.conditionValue);
-						}
-						if (setClauses.length === 0) throw new Error("No fields to update");
-						binds.push(params.stepId);
-						await db
-							.prepare(`UPDATE scenario_steps SET ${setClauses.join(", ")} WHERE id = ?`)
-							.bind(...binds)
-							.run();
+						const updates: Partial<{
+							stepOrder: number;
+							delayMinutes: number;
+							messageType: string;
+							messageContent: string;
+							conditionType: string | null;
+							conditionValue: string | null;
+							nextStepOnFalse: number | null;
+						}> = {};
+						if (params.stepOrder !== undefined) updates.stepOrder = params.stepOrder;
+						if (params.delayMinutes !== undefined) updates.delayMinutes = params.delayMinutes;
+						if (params.messageType !== undefined) updates.messageType = params.messageType;
+						if (params.messageContent !== undefined) updates.messageContent = params.messageContent;
+						if (params.conditionType !== undefined) updates.conditionType = params.conditionType;
+						if (params.conditionValue !== undefined) updates.conditionValue = params.conditionValue;
+						if (Object.keys(updates).length === 0) throw new Error("No fields to update");
+						await scenarioRepo.updateStep(params.stepId as ScenarioStepId, updates);
 						return textResult({ success: true, updatedStep: params.stepId });
 					}
 					case "delete_step": {
@@ -664,70 +652,57 @@ function registerManageForms(server: McpServer, db: D1Database): void {
 		},
 		async (params) => {
 			try {
+				const drizzle = createDb(db);
+				const formRepo = createFormRepository(drizzle);
 				const { action } = params;
 
 				switch (action) {
 					case "list": {
-						const result = await db.prepare("SELECT * FROM forms ORDER BY created_at DESC").all();
-						const forms = result.results;
+						const formList = await formRepo.list();
 						return textResult({
 							success: true,
-							total: forms.length,
-							forms: forms.map((f: Record<string, unknown>) => ({
+							total: formList.length,
+							forms: formList.map((f) => ({
 								id: f.id,
 								name: f.name,
 								description: f.description,
-								isActive: f.is_active === 1,
-								submitCount: f.submit_count,
-								createdAt: f.created_at,
+								isActive: f.isActive,
+								submitCount: f.submitCount,
+								createdAt: f.createdAt,
 							})),
 						});
 					}
 					case "get": {
 						if (!params.formId) throw new Error("formId is required for get action");
-						const form = await db.prepare("SELECT * FROM forms WHERE id = ?").bind(params.formId).first();
+						const form = await formRepo.findById(params.formId);
 						if (!form) return errorResult(`Form not found: ${params.formId}`);
 						return textResult({
 							success: true,
 							form: {
 								...form,
-								fields: typeof form.fields === "string" ? JSON.parse(form.fields as string) : form.fields,
-								isActive: form.is_active === 1,
-								saveToMetadata: form.save_to_metadata === 1,
+								fields: typeof form.fields === "string" ? JSON.parse(form.fields) : form.fields,
 							},
 						});
 					}
 					case "update": {
 						if (!params.formId) throw new Error("formId is required for update action");
-						const existing = await db.prepare("SELECT * FROM forms WHERE id = ?").bind(params.formId).first();
+						const existing = await formRepo.findById(params.formId);
 						if (!existing) return errorResult(`Form not found: ${params.formId}`);
-
-						const now = new Date().toISOString();
-						await db
-							.prepare(
-								`UPDATE forms SET name = ?, description = ?, fields = ?,
-								 on_submit_tag_id = ?, on_submit_scenario_id = ?,
-								 save_to_metadata = ?, is_active = ?, updated_at = ? WHERE id = ?`,
-							)
-							.bind(
-								params.name ?? existing.name,
-								params.description !== undefined ? params.description : existing.description,
-								params.fields ?? existing.fields,
-								params.onSubmitTagId !== undefined ? params.onSubmitTagId : existing.on_submit_tag_id,
-								params.onSubmitScenarioId !== undefined ? params.onSubmitScenarioId : existing.on_submit_scenario_id,
-								params.saveToMetadata !== undefined ? (params.saveToMetadata ? 1 : 0) : existing.save_to_metadata,
-								params.isActive !== undefined ? (params.isActive ? 1 : 0) : existing.is_active,
-								now,
-								params.formId,
-							)
-							.run();
-
-						const updated = await db.prepare("SELECT * FROM forms WHERE id = ?").bind(params.formId).first();
+						const updates: Parameters<typeof formRepo.update>[1] = {};
+						if (params.name !== undefined) updates.name = params.name;
+						if (params.description !== undefined) updates.description = params.description;
+						if (params.fields !== undefined) updates.fields = params.fields;
+						if (params.onSubmitTagId !== undefined) updates.onSubmitTagId = params.onSubmitTagId;
+						if (params.onSubmitScenarioId !== undefined) updates.onSubmitScenarioId = params.onSubmitScenarioId;
+						if (params.saveToMetadata !== undefined) updates.saveToMetadata = params.saveToMetadata;
+						if (params.isActive !== undefined) updates.isActive = params.isActive;
+						await formRepo.update(params.formId, updates);
+						const updated = await formRepo.findById(params.formId);
 						return textResult({ success: true, form: updated });
 					}
 					case "delete": {
 						if (!params.formId) throw new Error("formId is required for delete action");
-						await db.prepare("DELETE FROM forms WHERE id = ?").bind(params.formId).run();
+						await formRepo.delete(params.formId);
 						return textResult({ success: true, deleted: params.formId });
 					}
 					default:
@@ -754,30 +729,31 @@ function registerManageTrackedLinks(server: McpServer, db: D1Database): void {
 		},
 		async (params) => {
 			try {
+				const drizzle = createDb(db);
+				const trackedLinkRepo = createTrackedLinkRepository(drizzle);
 				const { action } = params;
 
 				switch (action) {
 					case "list": {
-						const result = await db.prepare("SELECT * FROM tracked_links ORDER BY created_at DESC").all();
-						const links = result.results;
+						const linkList = await trackedLinkRepo.list();
 						return textResult({
 							success: true,
-							total: links.length,
-							links: links.map((l: Record<string, unknown>) => ({
+							total: linkList.length,
+							links: linkList.map((l) => ({
 								id: l.id,
 								name: l.name,
-								originalUrl: l.original_url,
-								tagId: l.tag_id,
-								scenarioId: l.scenario_id,
-								isActive: l.is_active === 1,
-								clickCount: l.click_count,
-								createdAt: l.created_at,
+								originalUrl: l.originalUrl,
+								tagId: l.tagId,
+								scenarioId: l.scenarioId,
+								isActive: l.isActive,
+								clickCount: l.clickCount,
+								createdAt: l.createdAt,
 							})),
 						});
 					}
 					case "delete": {
 						if (!params.linkId) throw new Error("linkId is required for delete action");
-						await db.prepare("DELETE FROM tracked_links WHERE id = ?").bind(params.linkId).run();
+						await trackedLinkRepo.delete(params.linkId);
 						return textResult({ success: true, deleted: params.linkId });
 					}
 					default:

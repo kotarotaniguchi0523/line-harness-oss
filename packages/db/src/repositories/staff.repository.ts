@@ -39,6 +39,15 @@ export function createStaffRepository(db: Database) {
 			return row ?? null;
 		},
 
+		/** Find an active staff member by email address */
+		async findByEmail(email: string) {
+			const [row] = await db
+				.select()
+				.from(staffMembers)
+				.where(and(eq(staffMembers.email, email), eq(staffMembers.isActive, true)));
+			return row ?? null;
+		},
+
 		/** Create a new staff member with auto-generated API key, returns the generated ID */
 		async create(data: { name: string; email?: string | null; role: "owner" | "admin" | "staff" }): Promise<string> {
 			const id = crypto.randomUUID();

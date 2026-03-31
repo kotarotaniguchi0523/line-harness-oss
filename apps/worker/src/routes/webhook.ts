@@ -270,13 +270,18 @@ async function handleFollowEvent(
 		console.error("Failed to get profile for", userId, err);
 	}
 
-	await friendRepo.upsert({
-		lineUserId: userId as LineUserId,
-		displayName: profile?.displayName ?? null,
-		pictureUrl: profile?.pictureUrl ?? null,
-		statusMessage: profile?.statusMessage ?? null,
-		lineAccountId: (lineAccountId ?? undefined) as LineAccountId | undefined,
-	});
+	try {
+		await friendRepo.upsert({
+			lineUserId: userId as LineUserId,
+			displayName: profile?.displayName ?? null,
+			pictureUrl: profile?.pictureUrl ?? null,
+			statusMessage: profile?.statusMessage ?? null,
+			lineAccountId: (lineAccountId ?? undefined) as LineAccountId | undefined,
+		});
+	} catch (err) {
+		console.error("Failed to upsert friend for", userId, err);
+		return;
+	}
 	const friend = await friendRepo.findByLineUserId(userId as LineUserId);
 	if (!friend) return;
 

@@ -10,6 +10,7 @@ dist/
 .env.production
 .env.staging
 apps/web/out/
+storybook-static/
 
 # Beads / Dolt files (added by bd init)
 .beads/

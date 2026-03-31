@@ -58,14 +58,8 @@ broadcasts.post("/api/broadcasts", validateJson(CreateBroadcastSchema), async (c
 			targetType: body.targetType,
 			targetTagId: body.targetTagId ?? null,
 			scheduledAt: body.scheduledAt ?? null,
+			lineAccountId: (body.lineAccountId as LineAccountId) ?? undefined,
 		});
-
-		// Save line_account_id if provided
-		if (body.lineAccountId) {
-			await c.env.DB.prepare("UPDATE broadcasts SET line_account_id = ? WHERE id = ?")
-				.bind(body.lineAccountId, id)
-				.run();
-		}
 
 		const broadcast = await broadcastRepo.findById(id as BroadcastId);
 		return c.json({ success: true, data: broadcast }, 201);

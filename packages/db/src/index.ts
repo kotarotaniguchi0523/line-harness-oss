@@ -23,6 +23,7 @@ export { createFriendRepository } from "./repositories/friend.repository.js";
 export { createGroupChatRepository } from "./repositories/group-chat.repository.js";
 export { createHealthRepository } from "./repositories/health.repository.js";
 export { createLineAccountRepository } from "./repositories/line-account.repository.js";
+export { createMcpOauthRepository, type McpOauthRepository } from "./repositories/mcp-oauth.repository.js";
 export { createNotificationRepository } from "./repositories/notification.repository.js";
 export { createReminderRepository } from "./repositories/reminder.repository.js";
 export { createScenarioRepository } from "./repositories/scenario.repository.js";

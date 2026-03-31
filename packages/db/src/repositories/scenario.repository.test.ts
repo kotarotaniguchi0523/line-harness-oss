@@ -293,6 +293,45 @@ describe("ScenarioRepository", () => {
 		});
 	});
 
+	describe("updateStep", () => {
+		it("scenarioRepo_updateStep_validFields_shouldCallDrizzleUpdate", async () => {
+			const updateChain = createUpdateChain();
+			const db = {
+				update: vi.fn().mockReturnValueOnce(updateChain),
+			};
+			const repository = createScenarioRepository(db as never);
+
+			await repository.updateStep("step-1" as ScenarioStepId, {
+				stepOrder: 2,
+				messageType: "text",
+			});
+
+			expect(db.update).toHaveBeenCalledWith(scenarioSteps);
+			expect(updateChain.set).toHaveBeenCalledWith({
+				stepOrder: 2,
+				messageType: "text",
+			});
+			expect(updateChain.where).toHaveBeenCalledWith(
+				expect.objectContaining({
+					kind: "eq",
+					left: scenarioSteps.id,
+					right: "step-1",
+				}),
+			);
+		});
+
+		it("scenarioRepo_updateStep_emptyUpdates_shouldNotCallUpdate", async () => {
+			const db = {
+				update: vi.fn(),
+			};
+			const repository = createScenarioRepository(db as never);
+
+			await repository.updateStep("step-1" as ScenarioStepId, {});
+
+			expect(db.update).not.toHaveBeenCalled();
+		});
+	});
+
 	describe("getDueDeliveries", () => {
 		it("scenarioRepo_getDueDeliveries_shouldReturnDueOnly", async () => {
 			vi.useFakeTimers();

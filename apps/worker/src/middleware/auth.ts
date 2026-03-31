@@ -79,6 +79,8 @@ async function verifySessionCookie(c: Context<Env>, sessionToken: string): Promi
 		}
 
 		// 2. Cache miss — verify against D1
+		// NOTE: `session` / `user` tables are managed by better-auth and have no
+		// Drizzle schema in packages/db. Raw D1 is intentional here.
 		const result = await c.env.DB.prepare(`
         SELECT s.user_id, u.name, u.email
         FROM session s
@@ -92,9 +94,9 @@ async function verifySessionCookie(c: Context<Env>, sessionToken: string): Promi
 
 		// Map better-auth user to staff context
 		// Check if user is also a staff member for role info
-		const staffRow = await c.env.DB.prepare("SELECT id, role FROM staff_members WHERE email = ? AND is_active = 1")
-			.bind(result.email)
-			.first<{ id: string; role: string }>();
+		const db = createDb(c.env.DB);
+		const staffRepo = createStaffRepository(db);
+		const staffRow = await staffRepo.findByEmail(result.email);
 
 		const staffContext: StaffContext = {
 			id: staffRow?.id ?? result.user_id,

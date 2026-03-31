@@ -1,3 +1,7 @@
+import { and, eq, exists, not, or, sql, type SQL } from "drizzle-orm";
+import type { Database } from "@line-crm/db";
+import { friends, friendTags } from "@line-crm/db/schema";
+
 export interface SegmentRule {
 	type: "tag_exists" | "tag_not_exists" | "metadata_equals" | "metadata_not_equals" | "ref_code" | "is_following";
 	value: string | boolean | { key: string; value: string };
@@ -20,48 +24,37 @@ function validateMetadataValue(value: SegmentRule["value"]): { key: string; valu
 	return value as { key: string; value: string };
 }
 
-function buildRuleClause(rule: SegmentRule): { clause: string; params: unknown[] } {
+function buildRuleCondition(rule: SegmentRule): SQL {
 	switch (rule.type) {
 		case "tag_exists": {
-			if (typeof rule.value !== "string") {
-				throw new Error("tag_exists rule requires a string tag ID value");
-			}
-			return {
-				clause: "EXISTS (SELECT 1 FROM friend_tags ft WHERE ft.friend_id = f.id AND ft.tag_id = ?)",
-				params: [rule.value],
-			};
+			if (typeof rule.value !== "string") throw new Error("tag_exists rule requires a string tag ID value");
+			return exists(
+				sql`SELECT 1 FROM ${friendTags} WHERE ${friendTags.friendId} = ${friends.id} AND ${friendTags.tagId} = ${rule.value}`,
+			);
 		}
 		case "tag_not_exists": {
-			if (typeof rule.value !== "string") {
-				throw new Error("tag_not_exists rule requires a string tag ID value");
-			}
-			return {
-				clause: "NOT EXISTS (SELECT 1 FROM friend_tags ft WHERE ft.friend_id = f.id AND ft.tag_id = ?)",
-				params: [rule.value],
-			};
+			if (typeof rule.value !== "string") throw new Error("tag_not_exists rule requires a string tag ID value");
+			return not(
+				exists(
+					sql`SELECT 1 FROM ${friendTags} WHERE ${friendTags.friendId} = ${friends.id} AND ${friendTags.tagId} = ${rule.value}`,
+				),
+			);
 		}
 		case "metadata_equals": {
 			const mv = validateMetadataValue(rule.value);
-			return { clause: "json_extract(f.metadata, ?) = ?", params: [`$.${mv.key}`, mv.value] };
+			return sql`json_extract(${friends.metadata}, ${`$.${mv.key}`}) = ${mv.value}`;
 		}
 		case "metadata_not_equals": {
 			const mv = validateMetadataValue(rule.value);
-			return {
-				clause: "(json_extract(f.metadata, ?) IS NULL OR json_extract(f.metadata, ?) != ?)",
-				params: [`$.${mv.key}`, `$.${mv.key}`, mv.value],
-			};
+			return sql`(json_extract(${friends.metadata}, ${`$.${mv.key}`}) IS NULL OR json_extract(${friends.metadata}, ${`$.${mv.key}`}) != ${mv.value})`;
 		}
 		case "ref_code": {
-			if (typeof rule.value !== "string") {
-				throw new Error("ref_code rule requires a string value");
-			}
-			return { clause: "f.ref_code = ?", params: [rule.value] };
+			if (typeof rule.value !== "string") throw new Error("ref_code rule requires a string value");
+			return sql`${friends.metadata} IS NOT NULL AND json_extract(${friends.metadata}, '$.ref_code') = ${rule.value}`;
 		}
 		case "is_following": {
-			if (typeof rule.value !== "boolean") {
-				throw new Error("is_following rule requires a boolean value");
-			}
-			return { clause: "f.is_following = ?", params: [rule.value ? 1 : 0] };
+			if (typeof rule.value !== "boolean") throw new Error("is_following rule requires a boolean value");
+			return eq(friends.isFollowing, rule.value);
 		}
 		default: {
 			const exhaustive: never = rule.type;
@@ -70,19 +63,25 @@ function buildRuleClause(rule: SegmentRule): { clause: string; params: unknown[]
 	}
 }
 
-export function buildSegmentQuery(condition: SegmentCondition): { sql: string; bindings: unknown[] } {
-	const bindings: unknown[] = [];
-	const clauses: string[] = [];
+export function buildSegmentWhere(condition: SegmentCondition): SQL | undefined {
+	if (condition.rules.length === 0) return undefined;
 
-	for (const rule of condition.rules) {
-		const { clause, params } = buildRuleClause(rule);
-		clauses.push(clause);
-		bindings.push(...params);
+	const conditions = condition.rules.map(buildRuleCondition);
+
+	if (condition.operator === "AND") {
+		return and(...conditions);
 	}
+	return or(...conditions);
+}
 
-	const separator = condition.operator === "AND" ? " AND " : " OR ";
-	const where = clauses.length > 0 ? clauses.join(separator) : "1=1";
-	const sql = `SELECT f.id, f.line_user_id FROM friends f WHERE ${where}`;
+export async function executeSegmentQuery(
+	db: Database,
+	condition: SegmentCondition,
+): Promise<{ id: string; lineUserId: string }[]> {
+	const where = buildSegmentWhere(condition);
 
-	return { sql, bindings };
+	return db
+		.select({ id: friends.id, lineUserId: friends.lineUserId })
+		.from(friends)
+		.where(where);
 }
