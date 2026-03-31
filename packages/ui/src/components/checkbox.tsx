@@ -15,7 +15,7 @@ const checkboxRootStyle = css({
 	borderRadius: "0",
 	borderWidth: "1px",
 	borderStyle: "solid",
-	borderColor: "var(--input)",
+	borderColor: "input",
 	transitionProperty: "color, background-color, border-color",
 	transitionDuration: "150ms",
 	outline: "none",
@@ -29,26 +29,26 @@ const checkboxRootStyle = css({
 		insetBlock: "-0.5rem",
 	},
 	_focusVisible: {
-		borderColor: "var(--ring)",
+		borderColor: "ring",
 		ringWidth: "1px",
-		ringColor: "color-mix(in srgb, var(--ring) 50%, transparent)",
+		ringColor: "color-mix(in srgb, var(--colors-ring) 50%, transparent)",
 	},
 	_disabled: {
 		cursor: "not-allowed",
 		opacity: "0.5",
 	},
 	"&[aria-invalid=true]": {
-		borderColor: "var(--destructive)",
+		borderColor: "destructive",
 		ringWidth: "1px",
-		ringColor: "color-mix(in srgb, var(--destructive) 20%, transparent)",
+		ringColor: "color-mix(in srgb, var(--colors-destructive) 20%, transparent)",
 	},
 	"&[aria-invalid=true][aria-checked=true]": {
-		borderColor: "var(--primary)",
+		borderColor: "primary",
 	},
 	"&[data-checked]": {
-		borderColor: "var(--primary)",
-		backgroundColor: "var(--primary)",
-		color: "var(--primary-foreground)",
+		borderColor: "primary",
+		backgroundColor: "primary",
+		color: "primary.foreground",
 	},
 });
 

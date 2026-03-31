@@ -19,9 +19,9 @@ export const buttonVariants = cva({
 		userSelect: "none",
 		cursor: "pointer",
 		_focusVisible: {
-			borderColor: "var(--ring)",
+			borderColor: "ring",
 			ringWidth: "1px",
-			ringColor: "var(--ring)",
+			ringColor: "ring",
 		},
 		_disabled: {
 			pointerEvents: "none",
@@ -35,46 +35,46 @@ export const buttonVariants = cva({
 	variants: {
 		variant: {
 			default: {
-				backgroundColor: "var(--primary)",
-				color: "var(--primary-foreground)",
+				backgroundColor: "primary",
+				color: "primary.foreground",
 				_hover: {
-					backgroundColor: "color-mix(in srgb, var(--primary) 80%, transparent)",
+					backgroundColor: "color-mix(in srgb, var(--colors-primary) 80%, transparent)",
 				},
 			},
 			outline: {
-				borderColor: "var(--border)",
-				backgroundColor: "var(--background)",
+				borderColor: "border",
+				backgroundColor: "background",
 				_hover: {
-					backgroundColor: "var(--muted)",
-					color: "var(--foreground)",
+					backgroundColor: "muted",
+					color: "foreground",
 				},
 			},
 			secondary: {
-				backgroundColor: "var(--secondary)",
-				color: "var(--secondary-foreground)",
+				backgroundColor: "secondary",
+				color: "secondary.foreground",
 				_hover: {
-					backgroundColor: "color-mix(in srgb, var(--secondary) 80%, transparent)",
+					backgroundColor: "color-mix(in srgb, var(--colors-secondary) 80%, transparent)",
 				},
 			},
 			ghost: {
 				_hover: {
-					backgroundColor: "var(--muted)",
-					color: "var(--foreground)",
+					backgroundColor: "muted",
+					color: "foreground",
 				},
 			},
 			destructive: {
-				backgroundColor: "color-mix(in srgb, var(--destructive) 10%, transparent)",
-				color: "var(--destructive)",
+				backgroundColor: "color-mix(in srgb, var(--colors-destructive) 10%, transparent)",
+				color: "destructive",
 				_hover: {
-					backgroundColor: "color-mix(in srgb, var(--destructive) 20%, transparent)",
+					backgroundColor: "color-mix(in srgb, var(--colors-destructive) 20%, transparent)",
 				},
 				_focusVisible: {
-					borderColor: "color-mix(in srgb, var(--destructive) 40%, transparent)",
-					ringColor: "color-mix(in srgb, var(--destructive) 20%, transparent)",
+					borderColor: "color-mix(in srgb, var(--colors-destructive) 40%, transparent)",
+					ringColor: "color-mix(in srgb, var(--colors-destructive) 20%, transparent)",
 				},
 			},
 			link: {
-				color: "var(--primary)",
+				color: "primary",
 				textUnderlineOffset: "4px",
 				_hover: {
 					textDecoration: "underline",

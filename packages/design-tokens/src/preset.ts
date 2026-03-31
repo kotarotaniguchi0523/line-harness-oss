@@ -26,7 +26,7 @@ export const lineHarnessPreset = definePreset({
 					800: { value: "#1F2937" },
 					900: { value: "#111827" },
 				},
-				// Semantic base
+				// Semantic base (for composing semantic tokens)
 				blue: {
 					50: { value: "#EFF6FF" },
 					100: { value: "#DBEAFE" },
@@ -58,6 +58,9 @@ export const lineHarnessPreset = definePreset({
 					600: { value: "#059669" },
 				},
 			},
+			fonts: {
+				sans: { value: '"Inter Variable", ui-sans-serif, system-ui, sans-serif' },
+			},
 			spacing: {
 				xs: { value: "4px" },
 				sm: { value: "8px" },
@@ -69,6 +72,7 @@ export const lineHarnessPreset = definePreset({
 				"4xl": { value: "64px" },
 			},
 			radii: {
+				none: { value: "0" },
 				sm: { value: "4px" },
 				md: { value: "8px" },
 				lg: { value: "12px" },
@@ -103,13 +107,125 @@ export const lineHarnessPreset = definePreset({
 		},
 		semanticTokens: {
 			colors: {
-				// Primary actions
-				primary: {
-					DEFAULT: { value: { _light: "{colors.line.green}", _dark: "{colors.line.green}" } },
-					hover: { value: { _light: "{colors.line.greenHover}", _dark: "{colors.line.greenHover}" } },
-					text: { value: { _light: "{colors.white}", _dark: "{colors.white}" } },
+				// ---------------------------------------------------------------
+				// UI Semantic tokens (shadcn-compatible, OKLCH)
+				// ---------------------------------------------------------------
+				background: {
+					DEFAULT: {
+						value: { _light: "oklch(1 0 0)", _dark: "oklch(0.145 0 0)" },
+					},
 				},
-				// Status
+				foreground: {
+					DEFAULT: {
+						value: { _light: "oklch(0.145 0 0)", _dark: "oklch(0.985 0 0)" },
+					},
+				},
+				card: {
+					DEFAULT: {
+						value: { _light: "oklch(1 0 0)", _dark: "oklch(0.205 0 0)" },
+					},
+					foreground: {
+						value: { _light: "oklch(0.145 0 0)", _dark: "oklch(0.985 0 0)" },
+					},
+				},
+				popover: {
+					DEFAULT: {
+						value: { _light: "oklch(1 0 0)", _dark: "oklch(0.205 0 0)" },
+					},
+					foreground: {
+						value: { _light: "oklch(0.145 0 0)", _dark: "oklch(0.985 0 0)" },
+					},
+				},
+				primary: {
+					DEFAULT: {
+						value: { _light: "oklch(0.205 0 0)", _dark: "oklch(0.87 0 0)" },
+					},
+					foreground: {
+						value: { _light: "oklch(0.985 0 0)", _dark: "oklch(0.205 0 0)" },
+					},
+				},
+				secondary: {
+					DEFAULT: {
+						value: { _light: "oklch(0.97 0 0)", _dark: "oklch(0.269 0 0)" },
+					},
+					foreground: {
+						value: { _light: "oklch(0.205 0 0)", _dark: "oklch(0.985 0 0)" },
+					},
+				},
+				muted: {
+					DEFAULT: {
+						value: { _light: "oklch(0.97 0 0)", _dark: "oklch(0.269 0 0)" },
+					},
+					foreground: {
+						value: { _light: "oklch(0.556 0 0)", _dark: "oklch(0.708 0 0)" },
+					},
+				},
+				accent: {
+					DEFAULT: {
+						value: { _light: "oklch(0.97 0 0)", _dark: "oklch(0.371 0 0)" },
+					},
+					foreground: {
+						value: { _light: "oklch(0.205 0 0)", _dark: "oklch(0.985 0 0)" },
+					},
+				},
+				destructive: {
+					DEFAULT: {
+						value: { _light: "oklch(0.58 0.22 27)", _dark: "oklch(0.704 0.191 22.216)" },
+					},
+				},
+				border: {
+					DEFAULT: {
+						value: { _light: "oklch(0.922 0 0)", _dark: "oklch(1 0 0 / 10%)" },
+					},
+				},
+				input: {
+					DEFAULT: {
+						value: { _light: "oklch(0.922 0 0)", _dark: "oklch(1 0 0 / 15%)" },
+					},
+				},
+				ring: {
+					DEFAULT: {
+						value: { _light: "oklch(0.708 0 0)", _dark: "oklch(0.556 0 0)" },
+					},
+				},
+				// Chart colors
+				chart: {
+					1: { value: { _light: "oklch(0.809 0.105 251.813)", _dark: "oklch(0.809 0.105 251.813)" } },
+					2: { value: { _light: "oklch(0.623 0.214 259.815)", _dark: "oklch(0.623 0.214 259.815)" } },
+					3: { value: { _light: "oklch(0.546 0.245 262.881)", _dark: "oklch(0.546 0.245 262.881)" } },
+					4: { value: { _light: "oklch(0.488 0.243 264.376)", _dark: "oklch(0.488 0.243 264.376)" } },
+					5: { value: { _light: "oklch(0.424 0.199 265.638)", _dark: "oklch(0.424 0.199 265.638)" } },
+				},
+				// Sidebar
+				sidebar: {
+					DEFAULT: {
+						value: { _light: "oklch(0.985 0 0)", _dark: "oklch(0.205 0 0)" },
+					},
+					foreground: {
+						value: { _light: "oklch(0.145 0 0)", _dark: "oklch(0.985 0 0)" },
+					},
+					primary: {
+						value: { _light: "oklch(0.205 0 0)", _dark: "oklch(0.488 0.243 264.376)" },
+					},
+					primaryForeground: {
+						value: { _light: "oklch(0.985 0 0)", _dark: "oklch(0.985 0 0)" },
+					},
+					accent: {
+						value: { _light: "oklch(0.97 0 0)", _dark: "oklch(0.269 0 0)" },
+					},
+					accentForeground: {
+						value: { _light: "oklch(0.205 0 0)", _dark: "oklch(0.985 0 0)" },
+					},
+					border: {
+						value: { _light: "oklch(0.922 0 0)", _dark: "oklch(1 0 0 / 10%)" },
+					},
+					ring: {
+						value: { _light: "oklch(0.708 0 0)", _dark: "oklch(0.556 0 0)" },
+					},
+				},
+				// ---------------------------------------------------------------
+				// App-level semantic aliases (from original preset)
+				// ---------------------------------------------------------------
 				danger: {
 					DEFAULT: { value: { _light: "{colors.red.500}", _dark: "{colors.red.400}" } },
 					bg: { value: { _light: "{colors.red.50}", _dark: "{colors.red.500/10}" } },
@@ -128,22 +244,17 @@ export const lineHarnessPreset = definePreset({
 					DEFAULT: { value: { _light: "{colors.blue.500}", _dark: "{colors.blue.400}" } },
 					bg: { value: { _light: "{colors.blue.50}", _dark: "{colors.blue.500/10}" } },
 				},
-				// Surface
+				// Surface (app-level)
 				bg: {
 					DEFAULT: { value: { _light: "{colors.white}", _dark: "{colors.gray.900}" } },
 					subtle: { value: { _light: "{colors.gray.50}", _dark: "{colors.gray.800}" } },
 					muted: { value: { _light: "{colors.gray.100}", _dark: "{colors.gray.700}" } },
 				},
-				// Text
+				// Text (app-level)
 				fg: {
 					DEFAULT: { value: { _light: "{colors.gray.900}", _dark: "{colors.gray.50}" } },
 					muted: { value: { _light: "{colors.gray.500}", _dark: "{colors.gray.400}" } },
 					subtle: { value: { _light: "{colors.gray.400}", _dark: "{colors.gray.500}" } },
-				},
-				// Border
-				border: {
-					DEFAULT: { value: { _light: "{colors.gray.200}", _dark: "{colors.gray.700}" } },
-					subtle: { value: { _light: "{colors.gray.100}", _dark: "{colors.gray.800}" } },
 				},
 			},
 		},

@@ -23,8 +23,8 @@ const menuItemBase = {
 	outline: "none",
 	userSelect: "none",
 	"&:focus": {
-		backgroundColor: "var(--accent)",
-		color: "var(--accent-foreground)",
+		backgroundColor: "accent",
+		color: "accent.foreground",
 	},
 	"&[data-inset]": {
 		paddingLeft: "1.75rem",
@@ -45,8 +45,8 @@ const menuItemBase = {
 
 const overlayAnimation = {
 	borderRadius: "0",
-	backgroundColor: "var(--popover)",
-	color: "var(--popover-foreground)",
+	backgroundColor: "popover",
+	color: "popover.foreground",
 	transitionDuration: "100ms",
 	"&[data-side=bottom]": { transform: "translateY(-0.5rem)" },
 	"&[data-side=top]": { transform: "translateY(0.5rem)" },
@@ -148,7 +148,7 @@ const labelStyle = css({
 	paddingTop: "0.5rem",
 	paddingBottom: "0.5rem",
 	fontSize: "0.75rem",
-	color: "var(--muted-foreground)",
+	color: "muted.foreground",
 	"&[data-inset]": {
 		paddingLeft: "1.75rem",
 	},
@@ -177,20 +177,20 @@ const itemStyle = css({
 	...menuItemBase,
 	position: "relative",
 	"&:not([data-variant=destructive]):focus *": {
-		color: "var(--accent-foreground)",
+		color: "accent.foreground",
 	},
 	"&[data-variant=destructive]": {
-		color: "var(--destructive)",
+		color: "destructive",
 	},
 	"&[data-variant=destructive]:focus": {
-		backgroundColor: "color-mix(in srgb, var(--destructive) 10%, transparent)",
-		color: "var(--destructive)",
+		backgroundColor: "color-mix(in srgb, var(--colors-destructive) 10%, transparent)",
+		color: "destructive",
 	},
 	".dark &[data-variant=destructive]:focus": {
-		backgroundColor: "color-mix(in srgb, var(--destructive) 20%, transparent)",
+		backgroundColor: "color-mix(in srgb, var(--colors-destructive) 20%, transparent)",
 	},
 	"&[data-variant=destructive] > svg": {
-		color: "var(--destructive)",
+		color: "destructive",
 	},
 });
 
@@ -222,15 +222,15 @@ function DropdownMenuSub({ ...props }: MenuPrimitive.SubmenuRoot.Props) {
 const subTriggerStyle = css({
 	...menuItemBase,
 	"&:not([data-variant=destructive]):focus *": {
-		color: "var(--accent-foreground)",
+		color: "accent.foreground",
 	},
 	"&[data-popup-open]": {
-		backgroundColor: "var(--accent)",
-		color: "var(--accent-foreground)",
+		backgroundColor: "accent",
+		color: "accent.foreground",
 	},
 	"&[data-open]": {
-		backgroundColor: "var(--accent)",
-		color: "var(--accent-foreground)",
+		backgroundColor: "accent",
+		color: "accent.foreground",
 	},
 });
 
@@ -292,7 +292,7 @@ const selectableItemStyle = css({
 	position: "relative",
 	paddingRight: "2rem",
 	"&:focus *": {
-		color: "var(--accent-foreground)",
+		color: "accent.foreground",
 	},
 });
 
@@ -365,7 +365,7 @@ const separatorStyle = css({
 	marginLeft: "-0.25rem",
 	marginRight: "-0.25rem",
 	height: "1px",
-	backgroundColor: "var(--border)",
+	backgroundColor: "border",
 });
 
 function DropdownMenuSeparator({ className, ...props }: MenuPrimitive.Separator.Props) {
@@ -382,9 +382,9 @@ const shortcutStyle = css({
 	marginLeft: "auto",
 	fontSize: "0.75rem",
 	letterSpacing: "0.1em",
-	color: "var(--muted-foreground)",
+	color: "muted.foreground",
 	".group\\/dropdown-menu-item:focus &": {
-		color: "var(--accent-foreground)",
+		color: "accent.foreground",
 	},
 });
 

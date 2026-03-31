@@ -7,12 +7,12 @@ const cardStyle = css({
 	gap: "1rem",
 	overflow: "hidden",
 	borderRadius: "0",
-	backgroundColor: "var(--card)",
+	backgroundColor: "card",
 	paddingTop: "1rem",
 	paddingBottom: "1rem",
 	fontSize: "0.75rem",
 	lineHeight: "1.75",
-	color: "var(--card-foreground)",
+	color: "card.foreground",
 	boxShadow: "inset 0 0 0 1px rgba(var(--foreground-rgb, 0 0 0) / 0.1)",
 	ring: "1px",
 	ringColor: "rgba(var(--foreground-rgb, 0 0 0) / 0.1)",
@@ -99,7 +99,7 @@ function CardTitle({ className, ...props }: React.ComponentProps<"div">) {
 const cardDescriptionStyle = css({
 	fontSize: "0.75rem",
 	lineHeight: "1.75",
-	color: "var(--muted-foreground)",
+	color: "muted.foreground",
 });
 
 function CardDescription({ className, ...props }: React.ComponentProps<"div">) {
@@ -153,7 +153,7 @@ const cardFooterStyle = css({
 	display: "flex",
 	alignItems: "center",
 	borderRadius: "0",
-	borderTop: "1px solid var(--border)",
+	borderTop: "1px solid var(--colors-border)",
 	padding: "1rem",
 	".group\\/card[data-size=sm] &": {
 		padding: "0.75rem",

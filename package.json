@@ -24,6 +24,7 @@
 		"node": ">=20"
 	},
 	"devDependencies": {
+		"@line-crm/design-tokens": "workspace:*",
 		"@pandacss/dev": "^0.50.0",
 		"@storybook/react-vite": "^10.3.3",
 		"storybook": "^10.3.3",

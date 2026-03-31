@@ -56,6 +56,9 @@ importers:
 
   .:
     devDependencies:
+      '@line-crm/design-tokens':
+        specifier: workspace:*
+        version: link:packages/design-tokens
       '@pandacss/dev':
         specifier: ^0.50.0
         version: 0.50.0(jsdom@26.1.0)(typescript@5.9.3)

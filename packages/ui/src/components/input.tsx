@@ -9,7 +9,7 @@ const inputStyle = css({
 	borderRadius: "0",
 	borderWidth: "1px",
 	borderStyle: "solid",
-	borderColor: "var(--input)",
+	borderColor: "input",
 	backgroundColor: "transparent",
 	paddingInline: "0.625rem",
 	paddingBlock: "0.25rem",
@@ -25,26 +25,26 @@ const inputStyle = css({
 		backgroundColor: "transparent",
 		fontSize: "0.75rem",
 		fontWeight: "500",
-		color: "var(--foreground)",
+		color: "foreground",
 	},
 	"&::placeholder": {
-		color: "var(--muted-foreground)",
+		color: "muted.foreground",
 	},
 	_focusVisible: {
-		borderColor: "var(--ring)",
+		borderColor: "ring",
 		ringWidth: "1px",
-		ringColor: "color-mix(in srgb, var(--ring) 50%, transparent)",
+		ringColor: "color-mix(in srgb, var(--colors-ring) 50%, transparent)",
 	},
 	_disabled: {
 		pointerEvents: "none",
 		cursor: "not-allowed",
-		backgroundColor: "color-mix(in srgb, var(--input) 50%, transparent)",
+		backgroundColor: "color-mix(in srgb, var(--colors-input) 50%, transparent)",
 		opacity: "0.5",
 	},
 	"&[aria-invalid=true]": {
-		borderColor: "var(--destructive)",
+		borderColor: "destructive",
 		ringWidth: "1px",
-		ringColor: "color-mix(in srgb, var(--destructive) 20%, transparent)",
+		ringColor: "color-mix(in srgb, var(--colors-destructive) 20%, transparent)",
 	},
 });
 
