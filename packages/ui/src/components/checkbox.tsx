@@ -31,7 +31,7 @@ const checkboxRootStyle = css({
 	_focusVisible: {
 		borderColor: "ring",
 		ringWidth: "1px",
-		ringColor: "color-mix(in srgb, var(--colors-ring) 50%, transparent)",
+		ringColor: "ring.50",
 	},
 	_disabled: {
 		cursor: "not-allowed",
@@ -40,7 +40,7 @@ const checkboxRootStyle = css({
 	"&[aria-invalid=true]": {
 		borderColor: "destructive",
 		ringWidth: "1px",
-		ringColor: "color-mix(in srgb, var(--colors-destructive) 20%, transparent)",
+		ringColor: "destructive.20",
 	},
 	"&[aria-invalid=true][aria-checked=true]": {
 		borderColor: "primary",

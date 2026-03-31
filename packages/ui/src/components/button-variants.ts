@@ -38,7 +38,7 @@ export const buttonVariants = cva({
 				backgroundColor: "primary",
 				color: "primary.foreground",
 				_hover: {
-					backgroundColor: "color-mix(in srgb, var(--colors-primary) 80%, transparent)",
+					backgroundColor: "primary.80",
 				},
 			},
 			outline: {
@@ -53,7 +53,7 @@ export const buttonVariants = cva({
 				backgroundColor: "secondary",
 				color: "secondary.foreground",
 				_hover: {
-					backgroundColor: "color-mix(in srgb, var(--colors-secondary) 80%, transparent)",
+					backgroundColor: "secondary.80",
 				},
 			},
 			ghost: {
@@ -63,14 +63,14 @@ export const buttonVariants = cva({
 				},
 			},
 			destructive: {
-				backgroundColor: "color-mix(in srgb, var(--colors-destructive) 10%, transparent)",
+				backgroundColor: "destructive.10",
 				color: "destructive",
 				_hover: {
-					backgroundColor: "color-mix(in srgb, var(--colors-destructive) 20%, transparent)",
+					backgroundColor: "destructive.20",
 				},
 				_focusVisible: {
-					borderColor: "color-mix(in srgb, var(--colors-destructive) 40%, transparent)",
-					ringColor: "color-mix(in srgb, var(--colors-destructive) 20%, transparent)",
+					borderColor: "destructive.40",
+					ringColor: "destructive.20",
 				},
 			},
 			link: {

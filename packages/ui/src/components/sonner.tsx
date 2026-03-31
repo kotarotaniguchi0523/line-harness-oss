@@ -1,6 +1,7 @@
 "use client";
 
 import { css } from "../../styled-system/css";
+import { token } from "../../styled-system/tokens";
 import { CircleCheckIcon, InfoIcon, Loader2Icon, OctagonXIcon, TriangleAlertIcon } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Toaster as Sonner, type ToasterProps } from "sonner";
@@ -32,9 +33,9 @@ const Toaster = ({ ...props }: ToasterProps) => {
 			}}
 			style={
 				{
-					"--normal-bg": "var(--colors-popover)",
-					"--normal-text": "var(--colors-popover-foreground)",
-					"--normal-border": "var(--colors-border)",
+					"--normal-bg": token("colors.popover"),
+					"--normal-text": token("colors.popover.foreground"),
+					"--normal-border": token("colors.border"),
 					"--border-radius": "var(--radii-none, 0)",
 				} as React.CSSProperties
 			}

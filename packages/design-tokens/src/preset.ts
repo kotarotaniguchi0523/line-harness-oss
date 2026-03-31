@@ -119,6 +119,9 @@ export const lineHarnessPreset = definePreset({
 					DEFAULT: {
 						value: { _light: "oklch(0.145 0 0)", _dark: "oklch(0.985 0 0)" },
 					},
+					"10": {
+						value: { _light: "oklch(0.145 0 0 / 10%)", _dark: "oklch(0.985 0 0 / 10%)" },
+					},
 				},
 				card: {
 					DEFAULT: {
@@ -143,6 +146,9 @@ export const lineHarnessPreset = definePreset({
 					foreground: {
 						value: { _light: "oklch(0.985 0 0)", _dark: "oklch(0.205 0 0)" },
 					},
+					"80": {
+						value: { _light: "oklch(0.205 0 0 / 80%)", _dark: "oklch(0.87 0 0 / 80%)" },
+					},
 				},
 				secondary: {
 					DEFAULT: {
@@ -150,6 +156,9 @@ export const lineHarnessPreset = definePreset({
 					},
 					foreground: {
 						value: { _light: "oklch(0.205 0 0)", _dark: "oklch(0.985 0 0)" },
+					},
+					"80": {
+						value: { _light: "oklch(0.97 0 0 / 80%)", _dark: "oklch(0.269 0 0 / 80%)" },
 					},
 				},
 				muted: {
@@ -172,6 +181,16 @@ export const lineHarnessPreset = definePreset({
 					DEFAULT: {
 						value: { _light: "oklch(0.58 0.22 27)", _dark: "oklch(0.704 0.191 22.216)" },
 					},
+					// Opacity variants for hover/focus/ring states
+					"10": {
+						value: { _light: "oklch(0.58 0.22 27 / 10%)", _dark: "oklch(0.704 0.191 22.216 / 10%)" },
+					},
+					"20": {
+						value: { _light: "oklch(0.58 0.22 27 / 20%)", _dark: "oklch(0.704 0.191 22.216 / 20%)" },
+					},
+					"40": {
+						value: { _light: "oklch(0.58 0.22 27 / 40%)", _dark: "oklch(0.704 0.191 22.216 / 40%)" },
+					},
 				},
 				border: {
 					DEFAULT: {
@@ -182,10 +201,16 @@ export const lineHarnessPreset = definePreset({
 					DEFAULT: {
 						value: { _light: "oklch(0.922 0 0)", _dark: "oklch(1 0 0 / 15%)" },
 					},
+					"50": {
+						value: { _light: "oklch(0.922 0 0 / 50%)", _dark: "oklch(1 0 0 / 7.5%)" },
+					},
 				},
 				ring: {
 					DEFAULT: {
 						value: { _light: "oklch(0.708 0 0)", _dark: "oklch(0.556 0 0)" },
+					},
+					"50": {
+						value: { _light: "oklch(0.708 0 0 / 50%)", _dark: "oklch(0.556 0 0 / 50%)" },
 					},
 				},
 				// Chart colors

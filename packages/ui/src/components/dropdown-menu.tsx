@@ -183,11 +183,11 @@ const itemStyle = css({
 		color: "destructive",
 	},
 	"&[data-variant=destructive]:focus": {
-		backgroundColor: "color-mix(in srgb, var(--colors-destructive) 10%, transparent)",
+		backgroundColor: "destructive.10",
 		color: "destructive",
 	},
 	".dark &[data-variant=destructive]:focus": {
-		backgroundColor: "color-mix(in srgb, var(--colors-destructive) 20%, transparent)",
+		backgroundColor: "destructive.20",
 	},
 	"&[data-variant=destructive] > svg": {
 		color: "destructive",

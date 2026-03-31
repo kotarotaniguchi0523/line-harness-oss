@@ -33,18 +33,18 @@ const inputStyle = css({
 	_focusVisible: {
 		borderColor: "ring",
 		ringWidth: "1px",
-		ringColor: "color-mix(in srgb, var(--colors-ring) 50%, transparent)",
+		ringColor: "ring.50",
 	},
 	_disabled: {
 		pointerEvents: "none",
 		cursor: "not-allowed",
-		backgroundColor: "color-mix(in srgb, var(--colors-input) 50%, transparent)",
+		backgroundColor: "input.50",
 		opacity: "0.5",
 	},
 	"&[aria-invalid=true]": {
 		borderColor: "destructive",
 		ringWidth: "1px",
-		ringColor: "color-mix(in srgb, var(--colors-destructive) 20%, transparent)",
+		ringColor: "destructive.20",
 	},
 });
 

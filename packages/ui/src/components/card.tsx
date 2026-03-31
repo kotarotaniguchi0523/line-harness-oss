@@ -13,7 +13,7 @@ const cardStyle = css({
 	fontSize: "0.75rem",
 	lineHeight: "1.75",
 	color: "card.foreground",
-	boxShadow: "inset 0 0 0 1px color-mix(in srgb, var(--colors-foreground) 10%, transparent)",
+	boxShadow: "inset 0 0 0 1px var(--colors-foreground-10)",
 	"&:has([data-slot=card-footer])": {
 		paddingBottom: "0",
 	},
@@ -151,7 +151,9 @@ const cardFooterStyle = css({
 	display: "flex",
 	alignItems: "center",
 	borderRadius: "0",
-	borderTop: "1px solid var(--colors-border)",
+	borderTopWidth: "1px",
+	borderTopStyle: "solid",
+	borderTopColor: "border",
 	padding: "1rem",
 	".group\\/card[data-size=sm] &": {
 		padding: "0.75rem",
