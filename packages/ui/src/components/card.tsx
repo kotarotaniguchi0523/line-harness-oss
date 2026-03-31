@@ -69,12 +69,6 @@ const cardHeaderStyle = css({
 		paddingLeft: "0.75rem",
 		paddingRight: "0.75rem",
 	},
-	"&.border-b": {
-		paddingBottom: "1rem",
-	},
-	".group\\/card[data-size=sm] &.border-b": {
-		paddingBottom: "0.75rem",
-	},
 });
 
 function CardHeader({ className, ...props }: React.ComponentProps<"div">) {

@@ -5,6 +5,73 @@ import { css, cx } from "../../styled-system/css";
 import { CheckIcon, ChevronRightIcon } from "lucide-react";
 import type * as React from "react";
 
+// ---------------------------------------------------------------------------
+// Shared style fragments
+// ---------------------------------------------------------------------------
+
+const menuItemBase = {
+	display: "flex",
+	cursor: "default",
+	alignItems: "center",
+	gap: "0.5rem",
+	borderRadius: "0",
+	paddingLeft: "0.5rem",
+	paddingRight: "0.5rem",
+	paddingTop: "0.5rem",
+	paddingBottom: "0.5rem",
+	fontSize: "0.75rem",
+	outline: "none",
+	userSelect: "none",
+	"&:focus": {
+		backgroundColor: "var(--accent)",
+		color: "var(--accent-foreground)",
+	},
+	"&[data-inset]": {
+		paddingLeft: "1.75rem",
+	},
+	"&[data-disabled]": {
+		pointerEvents: "none",
+		opacity: 0.5,
+	},
+	"& svg": {
+		pointerEvents: "none",
+		flexShrink: 0,
+	},
+	"& svg:not([class*='size-'])": {
+		width: "1rem",
+		height: "1rem",
+	},
+} as const;
+
+const overlayAnimation = {
+	borderRadius: "0",
+	backgroundColor: "var(--popover)",
+	color: "var(--popover-foreground)",
+	transitionDuration: "100ms",
+	"&[data-side=bottom]": { transform: "translateY(-0.5rem)" },
+	"&[data-side=top]": { transform: "translateY(0.5rem)" },
+	"&[data-side=left], &[data-side=inline-start]": { transform: "translateX(0.5rem)" },
+	"&[data-side=right], &[data-side=inline-end]": { transform: "translateX(-0.5rem)" },
+	"&[data-open]": {
+		animationName: "fade-in, zoom-in-95",
+		animationDuration: "150ms",
+		animationTimingFunction: "ease-out",
+		animationFillMode: "both",
+		transform: "none",
+	},
+	"&[data-closed]": {
+		animationName: "fade-out, zoom-out-95",
+		animationDuration: "150ms",
+		animationTimingFunction: "ease-in",
+		animationFillMode: "both",
+		overflow: "hidden",
+	},
+} as const;
+
+// ---------------------------------------------------------------------------
+// Root / Portal / Trigger
+// ---------------------------------------------------------------------------
+
 function DropdownMenu({ ...props }: MenuPrimitive.Root.Props) {
 	return <MenuPrimitive.Root data-slot="dropdown-menu" {...props} />;
 }
@@ -17,6 +84,10 @@ function DropdownMenuTrigger({ ...props }: MenuPrimitive.Trigger.Props) {
 	return <MenuPrimitive.Trigger data-slot="dropdown-menu-trigger" {...props} />;
 }
 
+// ---------------------------------------------------------------------------
+// Content (Popup)
+// ---------------------------------------------------------------------------
+
 const positionerStyle = css({
 	isolation: "isolate",
 	zIndex: 50,
@@ -24,6 +95,7 @@ const positionerStyle = css({
 });
 
 const popupStyle = css({
+	...overlayAnimation,
 	zIndex: 50,
 	maxHeight: "var(--available-height)",
 	width: "var(--anchor-width)",
@@ -31,46 +103,8 @@ const popupStyle = css({
 	transformOrigin: "var(--transform-origin)",
 	overflowX: "hidden",
 	overflowY: "auto",
-	borderRadius: "0",
-	backgroundColor: "var(--popover)",
-	color: "var(--popover-foreground)",
 	boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)",
 	outline: "none",
-	transitionDuration: "100ms",
-	"&[data-side=bottom]": {
-		"--tw-enter-translate-y": "-0.5rem",
-	},
-	"&[data-side=inline-end]": {
-		"--tw-enter-translate-x": "-0.5rem",
-	},
-	"&[data-side=inline-start]": {
-		"--tw-enter-translate-x": "0.5rem",
-	},
-	"&[data-side=left]": {
-		"--tw-enter-translate-x": "0.5rem",
-	},
-	"&[data-side=right]": {
-		"--tw-enter-translate-x": "-0.5rem",
-	},
-	"&[data-side=top]": {
-		"--tw-enter-translate-y": "0.5rem",
-	},
-	"&[data-open]": {
-		animationName: "enter",
-		animationDuration: "150ms",
-		animationTimingFunction: "ease-out",
-		opacity: 1,
-		"--tw-enter-opacity": "0",
-		"--tw-enter-scale": "0.95",
-	},
-	"&[data-closed]": {
-		animationName: "exit",
-		animationDuration: "150ms",
-		animationTimingFunction: "ease-in",
-		overflow: "hidden",
-		"--tw-exit-opacity": "0",
-		"--tw-exit-scale": "0.95",
-	},
 });
 
 function DropdownMenuContent({
@@ -100,6 +134,10 @@ function DropdownMenuContent({
 	);
 }
 
+// ---------------------------------------------------------------------------
+// Group / Label
+// ---------------------------------------------------------------------------
+
 function DropdownMenuGroup({ ...props }: MenuPrimitive.Group.Props) {
 	return <MenuPrimitive.Group data-slot="dropdown-menu-group" {...props} />;
 }
@@ -120,9 +158,7 @@ function DropdownMenuLabel({
 	className,
 	inset,
 	...props
-}: MenuPrimitive.GroupLabel.Props & {
-	inset?: boolean;
-}) {
+}: MenuPrimitive.GroupLabel.Props & { inset?: boolean }) {
 	return (
 		<MenuPrimitive.GroupLabel
 			data-slot="dropdown-menu-label"
@@ -133,29 +169,15 @@ function DropdownMenuLabel({
 	);
 }
 
+// ---------------------------------------------------------------------------
+// Item
+// ---------------------------------------------------------------------------
+
 const itemStyle = css({
+	...menuItemBase,
 	position: "relative",
-	display: "flex",
-	cursor: "default",
-	alignItems: "center",
-	gap: "0.5rem",
-	borderRadius: "0",
-	paddingLeft: "0.5rem",
-	paddingRight: "0.5rem",
-	paddingTop: "0.5rem",
-	paddingBottom: "0.5rem",
-	fontSize: "0.75rem",
-	outline: "none",
-	userSelect: "none",
-	"&:focus": {
-		backgroundColor: "var(--accent)",
-		color: "var(--accent-foreground)",
-	},
 	"&:not([data-variant=destructive]):focus *": {
 		color: "var(--accent-foreground)",
-	},
-	"&[data-inset]": {
-		paddingLeft: "1.75rem",
 	},
 	"&[data-variant=destructive]": {
 		color: "var(--destructive)",
@@ -167,18 +189,6 @@ const itemStyle = css({
 	".dark &[data-variant=destructive]:focus": {
 		backgroundColor: "color-mix(in srgb, var(--destructive) 20%, transparent)",
 	},
-	"&[data-disabled]": {
-		pointerEvents: "none",
-		opacity: 0.5,
-	},
-	"& svg": {
-		pointerEvents: "none",
-		flexShrink: 0,
-	},
-	"& svg:not([class*='size-'])": {
-		width: "1rem",
-		height: "1rem",
-	},
 	"&[data-variant=destructive] > svg": {
 		color: "var(--destructive)",
 	},
@@ -189,10 +199,7 @@ function DropdownMenuItem({
 	inset,
 	variant = "default",
 	...props
-}: MenuPrimitive.Item.Props & {
-	inset?: boolean;
-	variant?: "default" | "destructive";
-}) {
+}: MenuPrimitive.Item.Props & { inset?: boolean; variant?: "default" | "destructive" }) {
 	return (
 		<MenuPrimitive.Item
 			data-slot="dropdown-menu-item"
@@ -204,32 +211,18 @@ function DropdownMenuItem({
 	);
 }
 
+// ---------------------------------------------------------------------------
+// Sub menu
+// ---------------------------------------------------------------------------
+
 function DropdownMenuSub({ ...props }: MenuPrimitive.SubmenuRoot.Props) {
 	return <MenuPrimitive.SubmenuRoot data-slot="dropdown-menu-sub" {...props} />;
 }
 
 const subTriggerStyle = css({
-	display: "flex",
-	cursor: "default",
-	alignItems: "center",
-	gap: "0.5rem",
-	borderRadius: "0",
-	paddingLeft: "0.5rem",
-	paddingRight: "0.5rem",
-	paddingTop: "0.5rem",
-	paddingBottom: "0.5rem",
-	fontSize: "0.75rem",
-	outline: "none",
-	userSelect: "none",
-	"&:focus": {
-		backgroundColor: "var(--accent)",
-		color: "var(--accent-foreground)",
-	},
+	...menuItemBase,
 	"&:not([data-variant=destructive]):focus *": {
 		color: "var(--accent-foreground)",
-	},
-	"&[data-inset]": {
-		paddingLeft: "1.75rem",
 	},
 	"&[data-popup-open]": {
 		backgroundColor: "var(--accent)",
@@ -239,28 +232,16 @@ const subTriggerStyle = css({
 		backgroundColor: "var(--accent)",
 		color: "var(--accent-foreground)",
 	},
-	"& svg": {
-		pointerEvents: "none",
-		flexShrink: 0,
-	},
-	"& svg:not([class*='size-'])": {
-		width: "1rem",
-		height: "1rem",
-	},
 });
 
-const chevronStyle = css({
-	marginLeft: "auto",
-});
+const chevronStyle = css({ marginLeft: "auto" });
 
 function DropdownMenuSubTrigger({
 	className,
 	inset,
 	children,
 	...props
-}: MenuPrimitive.SubmenuTrigger.Props & {
-	inset?: boolean;
-}) {
+}: MenuPrimitive.SubmenuTrigger.Props & { inset?: boolean }) {
 	return (
 		<MenuPrimitive.SubmenuTrigger
 			data-slot="dropdown-menu-sub-trigger"
@@ -275,40 +256,10 @@ function DropdownMenuSubTrigger({
 }
 
 const subContentStyle = css({
+	...overlayAnimation,
 	width: "auto",
 	minWidth: "96px",
-	borderRadius: "0",
-	backgroundColor: "var(--popover)",
-	color: "var(--popover-foreground)",
 	boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)",
-	transitionDuration: "100ms",
-	"&[data-side=bottom]": {
-		"--tw-enter-translate-y": "-0.5rem",
-	},
-	"&[data-side=left]": {
-		"--tw-enter-translate-x": "0.5rem",
-	},
-	"&[data-side=right]": {
-		"--tw-enter-translate-x": "-0.5rem",
-	},
-	"&[data-side=top]": {
-		"--tw-enter-translate-y": "0.5rem",
-	},
-	"&[data-open]": {
-		animationName: "enter",
-		animationDuration: "150ms",
-		animationTimingFunction: "ease-out",
-		opacity: 1,
-		"--tw-enter-opacity": "0",
-		"--tw-enter-scale": "0.95",
-	},
-	"&[data-closed]": {
-		animationName: "exit",
-		animationDuration: "150ms",
-		animationTimingFunction: "ease-in",
-		"--tw-exit-opacity": "0",
-		"--tw-exit-scale": "0.95",
-	},
 });
 
 function DropdownMenuSubContent({
@@ -332,41 +283,16 @@ function DropdownMenuSubContent({
 	);
 }
 
-const checkboxItemStyle = css({
+// ---------------------------------------------------------------------------
+// Checkbox / Radio items (shared selectable base)
+// ---------------------------------------------------------------------------
+
+const selectableItemStyle = css({
+	...menuItemBase,
 	position: "relative",
-	display: "flex",
-	cursor: "default",
-	alignItems: "center",
-	gap: "0.5rem",
-	borderRadius: "0",
-	paddingTop: "0.5rem",
-	paddingBottom: "0.5rem",
 	paddingRight: "2rem",
-	paddingLeft: "0.5rem",
-	fontSize: "0.75rem",
-	outline: "none",
-	userSelect: "none",
-	"&:focus": {
-		backgroundColor: "var(--accent)",
-		color: "var(--accent-foreground)",
-	},
 	"&:focus *": {
 		color: "var(--accent-foreground)",
-	},
-	"&[data-inset]": {
-		paddingLeft: "1.75rem",
-	},
-	"&[data-disabled]": {
-		pointerEvents: "none",
-		opacity: 0.5,
-	},
-	"& svg": {
-		pointerEvents: "none",
-		flexShrink: 0,
-	},
-	"& svg:not([class*='size-'])": {
-		width: "1rem",
-		height: "1rem",
 	},
 });
 
@@ -385,21 +311,16 @@ function DropdownMenuCheckboxItem({
 	checked,
 	inset,
 	...props
-}: MenuPrimitive.CheckboxItem.Props & {
-	inset?: boolean;
-}) {
+}: MenuPrimitive.CheckboxItem.Props & { inset?: boolean }) {
 	return (
 		<MenuPrimitive.CheckboxItem
 			data-slot="dropdown-menu-checkbox-item"
 			data-inset={inset}
-			className={cx(checkboxItemStyle, className)}
+			className={cx(selectableItemStyle, className)}
 			checked={checked}
 			{...props}
 		>
-			<span
-				className={indicatorSpanStyle}
-				data-slot="dropdown-menu-checkbox-item-indicator"
-			>
+			<span className={indicatorSpanStyle} data-slot="dropdown-menu-checkbox-item-indicator">
 				<MenuPrimitive.CheckboxItemIndicator>
 					<CheckIcon />
 				</MenuPrimitive.CheckboxItemIndicator>
@@ -413,63 +334,20 @@ function DropdownMenuRadioGroup({ ...props }: MenuPrimitive.RadioGroup.Props) {
 	return <MenuPrimitive.RadioGroup data-slot="dropdown-menu-radio-group" {...props} />;
 }
 
-const radioItemStyle = css({
-	position: "relative",
-	display: "flex",
-	cursor: "default",
-	alignItems: "center",
-	gap: "0.5rem",
-	borderRadius: "0",
-	paddingTop: "0.5rem",
-	paddingBottom: "0.5rem",
-	paddingRight: "2rem",
-	paddingLeft: "0.5rem",
-	fontSize: "0.75rem",
-	outline: "none",
-	userSelect: "none",
-	"&:focus": {
-		backgroundColor: "var(--accent)",
-		color: "var(--accent-foreground)",
-	},
-	"&:focus *": {
-		color: "var(--accent-foreground)",
-	},
-	"&[data-inset]": {
-		paddingLeft: "1.75rem",
-	},
-	"&[data-disabled]": {
-		pointerEvents: "none",
-		opacity: 0.5,
-	},
-	"& svg": {
-		pointerEvents: "none",
-		flexShrink: 0,
-	},
-	"& svg:not([class*='size-'])": {
-		width: "1rem",
-		height: "1rem",
-	},
-});
-
 function DropdownMenuRadioItem({
 	className,
 	children,
 	inset,
 	...props
-}: MenuPrimitive.RadioItem.Props & {
-	inset?: boolean;
-}) {
+}: MenuPrimitive.RadioItem.Props & { inset?: boolean }) {
 	return (
 		<MenuPrimitive.RadioItem
 			data-slot="dropdown-menu-radio-item"
 			data-inset={inset}
-			className={cx(radioItemStyle, className)}
+			className={cx(selectableItemStyle, className)}
 			{...props}
 		>
-			<span
-				className={indicatorSpanStyle}
-				data-slot="dropdown-menu-radio-item-indicator"
-			>
+			<span className={indicatorSpanStyle} data-slot="dropdown-menu-radio-item-indicator">
 				<MenuPrimitive.RadioItemIndicator>
 					<CheckIcon />
 				</MenuPrimitive.RadioItemIndicator>
@@ -478,6 +356,10 @@ function DropdownMenuRadioItem({
 		</MenuPrimitive.RadioItem>
 	);
 }
+
+// ---------------------------------------------------------------------------
+// Separator / Shortcut
+// ---------------------------------------------------------------------------
 
 const separatorStyle = css({
 	marginLeft: "-0.25rem",
