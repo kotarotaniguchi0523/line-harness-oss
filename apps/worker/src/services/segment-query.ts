@@ -49,8 +49,9 @@ function buildRuleCondition(rule: SegmentRule): SQL {
 			return sql`(json_extract(${friends.metadata}, ${`$.${mv.key}`}) IS NULL OR json_extract(${friends.metadata}, ${`$.${mv.key}`}) != ${mv.value})`;
 		}
 		case "ref_code": {
+			// ref_code is a physical column on friends table (not yet in Drizzle schema)
 			if (typeof rule.value !== "string") throw new Error("ref_code rule requires a string value");
-			return sql`${friends.metadata} IS NOT NULL AND json_extract(${friends.metadata}, '$.ref_code') = ${rule.value}`;
+			return sql`ref_code = ${rule.value}`;
 		}
 		case "is_following": {
 			if (typeof rule.value !== "boolean") throw new Error("is_following rule requires a boolean value");

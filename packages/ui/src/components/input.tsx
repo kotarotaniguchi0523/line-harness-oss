@@ -18,7 +18,7 @@ const inputStyle = css({
 	transitionProperty: "color, background-color, border-color",
 	transitionDuration: "150ms",
 	outline: "none",
-	"& ::file-selector-button": {
+	"&::file-selector-button": {
 		display: "inline-flex",
 		height: "1.5rem",
 		borderWidth: "0",

@@ -83,6 +83,7 @@ export function createMcpClientsStore(repo: McpOauthRepository): OAuthRegistered
 				grantTypes: clientInfo.grant_types ?? ["authorization_code"],
 				scopes: clientInfo.scope ?? undefined,
 				clientSecret: clientInfo.client_secret ?? undefined,
+				clientSecretExpiresAt: clientInfo.client_secret_expires_at ?? undefined,
 				tokenEndpointAuthMethod: clientInfo.token_endpoint_auth_method ?? undefined,
 			});
 

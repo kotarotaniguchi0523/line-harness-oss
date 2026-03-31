@@ -27,6 +27,7 @@ export interface RegisterClientInput {
 	grantTypes?: string[];
 	scopes?: string;
 	clientSecret?: string;
+	clientSecretExpiresAt?: number;
 	tokenEndpointAuthMethod?: string;
 }
 
@@ -127,6 +128,7 @@ export function createMcpOauthRepository(db: Database): McpOauthRepository {
 				grantTypes: JSON.stringify(data.grantTypes ?? ["authorization_code"]),
 				scopes: data.scopes ?? null,
 				clientSecret: data.clientSecret ?? null,
+				clientSecretExpiresAt: data.clientSecretExpiresAt ?? null,
 				tokenEndpointAuthMethod: data.tokenEndpointAuthMethod ?? null,
 				clientIdIssuedAt: now,
 			});

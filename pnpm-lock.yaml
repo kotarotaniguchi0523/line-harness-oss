@@ -181,6 +181,9 @@ importers:
       '@line-crm/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@line-crm/design-tokens':
+        specifier: workspace:*
+        version: link:../../packages/design-tokens
       '@tanstack/react-router-devtools':
         specifier: ^1.141.1
         version: 1.166.11(@tanstack/react-router@1.168.7(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(@tanstack/router-core@1.168.6)(csstype@3.2.3)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)

@@ -13,9 +13,7 @@ const cardStyle = css({
 	fontSize: "0.75rem",
 	lineHeight: "1.75",
 	color: "card.foreground",
-	boxShadow: "inset 0 0 0 1px rgba(var(--foreground-rgb, 0 0 0) / 0.1)",
-	ring: "1px",
-	ringColor: "rgba(var(--foreground-rgb, 0 0 0) / 0.1)",
+	boxShadow: "inset 0 0 0 1px color-mix(in srgb, var(--colors-foreground) 10%, transparent)",
 	"&:has([data-slot=card-footer])": {
 		paddingBottom: "0",
 	},
